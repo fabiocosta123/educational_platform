@@ -1,11 +1,17 @@
-﻿namespace EducationalPlataform.Entities
+﻿using System.ComponentModel.DataAnnotations;
+
+namespace EducationalPlataform.Entities
 {
     public class Course
     {
         public int Id { get; set; }
+
+        [Required(ErrorMessage = "Título é obrigatório.")]
+        [StringLength(100, ErrorMessage = "O nome não pode ter mais de 100 caracteres")]
         public string? Title { get; set; }
         public string? Description { get; set; }
 
+        [Required(ErrorMessage = "O Criador é obrigatório.")]
         public int CreatorId { get; set; }
         public User Creator { get; set; }
 
