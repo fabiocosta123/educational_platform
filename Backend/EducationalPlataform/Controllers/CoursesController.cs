@@ -2,9 +2,7 @@
 using EducationalPlataform.Data;
 using EducationalPlataform.DTOs;
 using EducationalPlataform.Entities;
-using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
 
 namespace EducationalPlataform.Controllers
 {
@@ -46,7 +44,7 @@ namespace EducationalPlataform.Controllers
         }
 
         [HttpPost]
-        public ActionResult<CourseReadDto> Create(CourseCreateDto dto)
+        public ActionResult<CourseReadDto> Create([FromBody] CourseCreateDto dto)
         {
             var course = _mapper.Map<Course>(dto);
 
@@ -60,7 +58,7 @@ namespace EducationalPlataform.Controllers
         
 
         [HttpPut("{id}")]
-        public ActionResult Update(int id, CourseUpdateDto dto)
+        public ActionResult Update(int id, [FromBody] CourseUpdateDto dto)
         {
             var course = _context.Courses.Find(id);
             if (course == null)
