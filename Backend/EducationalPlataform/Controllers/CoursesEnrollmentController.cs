@@ -33,7 +33,7 @@ namespace EducationalPlataform.Controllers
         {
             var enrollment = _context.CourseEnrollments.Find(id);
             if (enrollment == null)
-                return NotFound();
+                throw new ArgumentException($"Course with id {id} not found");
 
             var enrollmentDto = _mapper.Map<CourseEnrollmentReadDto>(enrollment);
             return Ok(enrollmentDto);
@@ -56,7 +56,7 @@ namespace EducationalPlataform.Controllers
         {
             var enrollment = _context.CourseEnrollments.Find(id);
             if (enrollment == null)
-                return NotFound();
+                throw new ArgumentException($"Course with id {id} not found");
 
             _mapper.Map(dto, enrollment);
             _context.SaveChanges();
@@ -70,7 +70,7 @@ namespace EducationalPlataform.Controllers
         {
             var enrollment = _context.CourseEnrollments.Find(id);
             if (enrollment == null)
-                return NotFound();
+                throw new ArgumentException($"Course with id {id} not found");
 
             _context.CourseEnrollments.Remove(enrollment);
             _context.SaveChanges();

@@ -3,6 +3,7 @@ using EducationalPlataform.Data;
 using EducationalPlataform.DTOs;
 using EducationalPlataform.Entities;
 using Microsoft.AspNetCore.Mvc;
+using EducationalPlataform.Middleware;
 
 namespace EducationalPlataform.Controllers
 {
@@ -37,7 +38,7 @@ namespace EducationalPlataform.Controllers
         {
             var course = _context.Courses.Find(id);
             if (course == null)
-                return NotFound();
+                throw new ArgumentException($"Course with id {id} not found");
 
             var courseDto = _mapper.Map<CourseReadDto>(course);
             return Ok(courseDto);
@@ -62,7 +63,7 @@ namespace EducationalPlataform.Controllers
         {
             var course = _context.Courses.Find(id);
             if (course == null)
-                return NotFound();
+                throw new ArgumentException($"Course with id {id} not found");
 
             course.Title = dto.Title;
             course.Description = dto.Description;
@@ -78,7 +79,7 @@ namespace EducationalPlataform.Controllers
         {
             var course = _context.Courses.Find(id);
             if (course == null)
-                return NotFound();
+                throw new ArgumentException($"Course with id {id} not found");
             _context.Courses.Remove(course);
             _context.SaveChanges();
             return NoContent();

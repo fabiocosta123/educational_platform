@@ -30,7 +30,7 @@ public class UsersController : ControllerBase
     {
         var user = _context.Users.Find(id);
         if (user == null)
-            return NotFound();
+            throw new ArgumentException($"Course with id {id} not found");
         var userDto = _mapper.Map<UserReadDto>(user);
         return Ok(userDto);
     }
@@ -51,7 +51,7 @@ public class UsersController : ControllerBase
     {
         var user = _context.Users.Find(id);
         if (user == null)
-            return NotFound();
+            throw new ArgumentException($"Course with id {id} not found");
 
         _mapper.Map(dto, user);
         _context.SaveChanges();
@@ -63,7 +63,7 @@ public class UsersController : ControllerBase
     {
         var user = _context.Users.Find(id);
         if (user == null)
-            return NotFound();
+            throw new ArgumentException($"Course with id {id} not found");
 
         _context.Users.Remove(user);
         _context.SaveChanges();
