@@ -34,7 +34,7 @@ namespace EducationalPlataform.Controllers
         {
             var lesson = _context.Lessons.Find(id);
             if (lesson == null)
-                return NotFound();
+                throw new ArgumentException($"Course with id {id} not found");
 
             var lessonDto = _mapper.Map<LessonReadDto>(lesson);
             return Ok(lessonDto);
@@ -58,7 +58,7 @@ namespace EducationalPlataform.Controllers
         {
             var lesson = _context.Lessons.Find(id);
             if (lesson == null)
-                return NotFound();
+                throw new ArgumentException($"Course with id {id} not found");
 
             _mapper.Map(dto, lesson);
             _context.SaveChanges();
@@ -71,7 +71,7 @@ namespace EducationalPlataform.Controllers
         {
             var lesson = _context.Lessons.Find(id);
             if (lesson == null)
-                return NotFound();
+                throw new ArgumentException($"Course with id {id} not found");
             _context.Lessons.Remove(lesson);
             _context.SaveChanges();
 

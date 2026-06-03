@@ -36,7 +36,7 @@ namespace EducationalPlataform.Middleware
             {
                 case ArgumentException:
                     statusCode = StatusCodes.Status400BadRequest;
-                    response = new ErrorResponse(statusCode, "Invalid request data.", ex.Message);
+                    response = new ErrorResponse(statusCode, "Invalid request data: ", ex.Message);
                     break;
 
                 case UnauthorizedAccessException:
@@ -57,7 +57,7 @@ namespace EducationalPlataform.Middleware
             }
 
             context.Response.ContentType = "application/json";
-            context.Response.StatusCode = StatusCodes.Status500InternalServerError;
+            context.Response.StatusCode = statusCode;
 
             return context.Response.WriteAsJsonAsync(response);
         }
