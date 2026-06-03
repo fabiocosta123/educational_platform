@@ -1,17 +1,18 @@
 using EducationalPlataform.Data;
+using EducationalPlataform.Entities;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi;
 using System.Text;
 
 
-
-
 var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
 builder.Services.AddControllers();
+builder.Services.AddScoped<IPasswordHasher<User>, PasswordHasher<User>>();
 
 // configuration jwt authentication
 var key = Encoding.ASCII.GetBytes(builder.Configuration["Jwt:Key"]);
@@ -37,6 +38,8 @@ builder.Services.AddAuthentication(options =>
 builder.Services.AddAuthorization();
 
 
+
+
 // auto mapper configuration
 builder.Services.AddAutoMapper(typeof(Program).Assembly);
 
@@ -54,6 +57,8 @@ builder.Services.AddSwaggerGen(c =>
         Title = "EducationalPlataform API",
         Version = "v1"
     });
+
+    
 });
 
 
@@ -79,6 +84,8 @@ using (var scope = app.Services.CreateScope())
 app.UseMiddleware<EducationalPlataform.Middleware.ErrorHandlingMiddleware>();
 
 app.UseHttpsRedirection();
+
+app.UseAuthentication();
 
 app.UseAuthorization();
 
