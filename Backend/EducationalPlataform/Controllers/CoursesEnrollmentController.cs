@@ -1,0 +1,80 @@
+﻿using AutoMapper;
+using EducationalPlataform.Data;
+using EducationalPlataform.DTOs;
+using EducationalPlataform.Entities;
+using Microsoft.AspNetCore.Mvc;
+
+
+namespace EducationalPlataform.Controllers
+{
+    [ApiController]
+    [Route("api/[controller]")]
+    public class CoursesEnrollmentController : ControllerBase
+    {
+        private readonly EducationalPlataformContext _context;
+        private readonly IMapper _mapper;
+
+        public CoursesEnrollmentController(EducationalPlataformContext context, IMapper mapper)
+        {
+            _context = context;
+            _mapper = mapper;
+        }
+
+        [HttpGet]
+        public ActionResult<IEnumerable<CourseEnrollmentReadDto>> GetAll()
+        {
+            var enrollments = _context.CourseEnrollments.ToList();
+            var enrollmentsDto = _mapper.Map<List<CourseEnrollmentReadDto>>(enrollments);
+            return Ok(enrollmentsDto);
+        }
+
+        [HttpGet("{id}")]
+        public ActionResult<CourseEnrollmentReadDto> GetById(int id)
+        {
+            var enrollment = _context.CourseEnrollments.Find(id);
+            if (enrollment == null)
+                return NotFound();
+
+            var enrollmentDto = _mapper.Map<CourseEnrollmentReadDto>(enrollment);
+            return Ok(enrollmentDto);
+        }
+
+        [HttpPost]
+        public ActionResult<CourseEnrollmentReadDto> Create([FromBody] CourseEnrollmentCreateDto dto)
+        {
+            var enrollment = _mapper.Map<CourseEnrollment>(dto);
+
+            _context.CourseEnrollments.Add(enrollment);
+            _context.SaveChanges();
+
+            var enrollmentReadDto = _mapper.Map<CourseEnrollmentReadDto>(enrollment);
+            return CreatedAtAction(nameof(GetById), new { id = enrollment.Id }, enrollmentReadDto);
+        }
+
+        [HttpPut("{id}")]
+        public ActionResult Update(int id, [FromBody] CourseEnrollmentUpdateDto dto)
+        {
+            var enrollment = _context.CourseEnrollments.Find(id);
+            if (enrollment == null)
+                return NotFound();
+
+            _mapper.Map(dto, enrollment);
+            _context.SaveChanges();
+
+            return NoContent();
+        }
+
+
+        [HttpDelete("{id}")]
+        public ActionResult Delete(int id)
+        {
+            var enrollment = _context.CourseEnrollments.Find(id);
+            if (enrollment == null)
+                return NotFound();
+
+            _context.CourseEnrollments.Remove(enrollment);
+            _context.SaveChanges();
+            return NoContent();
+        }
+    }
+}
