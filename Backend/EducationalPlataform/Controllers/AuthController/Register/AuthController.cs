@@ -2,18 +2,15 @@
 using EducationalPlataform.DTOs;
 using EducationalPlataform.Entities;
 using EducationalPlataform.Models.Enums;
-using Microsoft.AspNetCore.Authorization;
-using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using System.IdentityModel.Tokens.Jwt;
-using System.Runtime.InteropServices;
 using System.Security.Claims;
 using System.Text;
 
-namespace EducationalPlataform.Controllers.AuthController
+namespace EducationalPlataform.Controllers.AuthController.Register
 {
     [ApiController]
     [Route("api/[controller]")]
@@ -32,20 +29,23 @@ namespace EducationalPlataform.Controllers.AuthController
         }
 
 
-        
+
         [HttpPost("register")]
-        public async Task<IActionResult> Register(string username, string password, UserProfile profile)
+        public async Task<IActionResult> Register([FromBody] UserRegisterDto dto)
         {
-            if (await _context.Users.AnyAsync(u => u.UserName == username))
+            if (await _context.Users.AnyAsync(u => u.UserName == dto.UserName))
                 throw new ArgumentException("Username already exists.");
 
             var user = new User
             {
-                UserName = username,
-                Profile = profile
+                UserName = dto.UserName,
+                UserEmail = dto.UserEmail,
+                CPF = dto.CPF,
+                BirthDate = dto.BirthDate,
+                Profile = dto.Profile
             };
 
-            user.PasswordHash = _passwordHasher.HashPassword(user, password);
+            user.PasswordHash = _passwordHasher.HashPassword(user, dto.Password);
 
             _context.Users.Add(user);
             await _context.SaveChangesAsync();
@@ -75,7 +75,7 @@ namespace EducationalPlataform.Controllers.AuthController
                 Subject = new ClaimsIdentity(new[]
                 {
                     new Claim(ClaimTypes.Name, user.UserName),
-                    new Claim(ClaimTypes.Role, user.Profile.ToString())                    
+                    new Claim(ClaimTypes.Role, user.Profile.ToString())
                 }),
                 Expires = DateTime.UtcNow.AddHours(2),
                 SigningCredentials = new SigningCredentials(new SymmetricSecurityKey(key), SecurityAlgorithms.HmacSha256Signature)
@@ -86,7 +86,7 @@ namespace EducationalPlataform.Controllers.AuthController
 
         }
 
-        
+
 
 
     }

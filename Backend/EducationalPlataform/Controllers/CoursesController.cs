@@ -4,9 +4,11 @@ using EducationalPlataform.DTOs;
 using EducationalPlataform.Entities;
 using Microsoft.AspNetCore.Mvc;
 using EducationalPlataform.Middleware;
+using Microsoft.AspNetCore.Authorization;
 
 namespace EducationalPlataform.Controllers
 {
+    [Authorize]
     [Route("api/[controller]")]
     [ApiController]
     public class CoursesController : ControllerBase
