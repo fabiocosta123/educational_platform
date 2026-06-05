@@ -14,7 +14,7 @@ public class UserCreateDto
     [Required(ErrorMessage = "A senha é obrigatória.")]
     public string Password { get; set; } = string.Empty;
 
-    [Required(ErrorMessage = "O CPF é obrigatório.")]
+    
     [RegularExpression(@"^\d{3}\.\d{3}\.\d{3}-\d{2}$", ErrorMessage = "Formato inválido de CPF.")]
     public string CPF { get; set; } = string.Empty;
 

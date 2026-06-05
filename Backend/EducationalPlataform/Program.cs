@@ -37,6 +37,20 @@ builder.Services.AddAuthentication(options =>
 
 builder.Services.AddAuthorization();
 
+// CORS configuration
+
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("AllowFrontend",
+        policy =>
+        {
+            policy.WithOrigins("http://localhost:3000", "http://192.168.1.75:3000") 
+                  .AllowAnyHeader()
+                  .AllowAnyMethod();
+        });
+});
+
+
 
 
 
@@ -82,6 +96,8 @@ using (var scope = app.Services.CreateScope())
     });
 
 app.UseMiddleware<EducationalPlataform.Middleware.ErrorHandlingMiddleware>();
+
+app.UseCors("AllowFrontend");
 
 app.UseHttpsRedirection();
 

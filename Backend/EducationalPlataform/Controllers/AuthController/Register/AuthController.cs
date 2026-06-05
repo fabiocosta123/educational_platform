@@ -54,15 +54,16 @@ namespace EducationalPlataform.Controllers.AuthController.Register
         }
 
 
+        
         [HttpPost("login")]
-        public async Task<IActionResult> Login(string username, string password)
+        public async Task<IActionResult> Login([FromBody] UserLoginDto dto)
         {
-            var user = await _context.Users.FirstOrDefaultAsync(u => u.UserName == username);
+            var user = await _context.Users.FirstOrDefaultAsync(u => u.UserName == dto.UserName || u.UserEmail == dto.UserName);
 
             if (user == null)
                 throw new ArgumentException("Invalid credentials");
 
-            var result = _passwordHasher.VerifyHashedPassword(user, user.PasswordHash, password);
+            var result = _passwordHasher.VerifyHashedPassword(user, user.PasswordHash, dto.Password);
 
             if (result == PasswordVerificationResult.Failed)
                 throw new ArgumentException("Invalid credentials");
@@ -74,20 +75,16 @@ namespace EducationalPlataform.Controllers.AuthController.Register
             {
                 Subject = new ClaimsIdentity(new[]
                 {
-                    new Claim(ClaimTypes.Name, user.UserName),
-                    new Claim(ClaimTypes.Role, user.Profile.ToString())
-                }),
+            new Claim(ClaimTypes.Name, user.UserName),
+            new Claim(ClaimTypes.Role, user.Profile.ToString())
+        }),
                 Expires = DateTime.UtcNow.AddHours(2),
                 SigningCredentials = new SigningCredentials(new SymmetricSecurityKey(key), SecurityAlgorithms.HmacSha256Signature)
             };
 
             var token = tokenHandler.CreateToken(tokenDescriptor);
             return Ok(new { token = tokenHandler.WriteToken(token) });
-
         }
-
-
-
 
     }
 }
