@@ -68,6 +68,13 @@ namespace EducationalPlataform.Controllers.AuthController.Register
             if (result == PasswordVerificationResult.Failed)
                 throw new ArgumentException("Invalid credentials");
 
+            if (result == PasswordVerificationResult.SuccessRehashNeeded)
+            {
+                user.PasswordHash = _passwordHasher.HashPassword(user, dto.Password);
+                _context.Users.Update(user);
+                await _context.SaveChangesAsync();
+            }
+
             var tokenHandler = new JwtSecurityTokenHandler();
             var key = Encoding.ASCII.GetBytes(_configuration["Jwt:Key"]);
 
