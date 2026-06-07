@@ -7,8 +7,8 @@ namespace EducationalPlataform.Services
 {
     public class UserService : IUserService
     {
-        private readonly ApplicationDbContext _context;
-        public UserService(ApplicationDbContext context)
+        private readonly EducationalPlataformContext _context;
+        public UserService(EducationalPlataformContext context)
         {
             _context = context;
         }

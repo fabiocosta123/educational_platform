@@ -1,9 +1,9 @@
 ﻿using EducationalPlataform.Data;
 using EducationalPlataform.Entities;
 using EducationalPlataform.Interface;
-using Google.Apis.Auth;
 using Microsoft.AspNetCore.Mvc;
-using System.Threading.Tasks;
+using Google.Apis.Auth;
+
 
 namespace EducationalPlataform.AuthController
 {
@@ -11,10 +11,10 @@ namespace EducationalPlataform.AuthController
     [Route("api/Auth/google-login")]
     public class GoogleLoginController : ControllerBase
     {
-        private readonly ApplicationDbContext _context;
+        private readonly EducationalPlataformContext _context;
         private readonly IJwtService _jwtService;
 
-        public GoogleLoginController(ApplicationDbContext context, IJwtService jwtService)
+        public GoogleLoginController(EducationalPlataformContext context, IJwtService jwtService)
         {
             _context = context;           
             _jwtService = jwtService;
