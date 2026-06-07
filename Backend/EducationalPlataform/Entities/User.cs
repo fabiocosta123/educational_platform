@@ -15,7 +15,7 @@ namespace EducationalPlataform.Entities
         
         public string? PasswordHash { get; set; }
        
-        public string CPF { get; set; }
+        public string? CPF { get; set; }
 
        
         public DateTime BirthDate { get; set; }

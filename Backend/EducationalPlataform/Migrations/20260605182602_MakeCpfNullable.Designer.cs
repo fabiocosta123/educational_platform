@@ -4,6 +4,7 @@ using EducationalPlataform.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
@@ -11,9 +12,11 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace EducationalPlataform.Migrations
 {
     [DbContext(typeof(EducationalPlataformContext))]
-    partial class EducationalPlataformContextModelSnapshot : ModelSnapshot
+    [Migration("20260605182602_MakeCpfNullable")]
+    partial class MakeCpfNullable
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
