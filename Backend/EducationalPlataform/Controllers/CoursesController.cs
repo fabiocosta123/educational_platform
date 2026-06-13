@@ -8,7 +8,7 @@ using Microsoft.AspNetCore.Authorization;
 
 namespace EducationalPlataform.Controllers
 {
-    [Authorize]
+    
     [Route("api/[controller]")]
     [ApiController]
     public class CoursesController : ControllerBase
@@ -22,8 +22,8 @@ namespace EducationalPlataform.Controllers
             _context = context;
             _mapper = mapper;
         }
-        
 
+        [AllowAnonymous]
         [HttpGet]
         public ActionResult<IEnumerable<CourseReadDto>> GetAll()
         {
