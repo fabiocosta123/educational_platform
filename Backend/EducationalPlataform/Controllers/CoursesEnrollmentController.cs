@@ -4,6 +4,7 @@ using EducationalPlataform.DTOs;
 using EducationalPlataform.Entities;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 
 
 namespace EducationalPlataform.Controllers
@@ -23,9 +24,19 @@ namespace EducationalPlataform.Controllers
         }
 
         [HttpGet]
-        public ActionResult<IEnumerable<CourseEnrollmentReadDto>> GetAll()
+        public ActionResult<IEnumerable<CourseEnrollmentReadDto>> GetAll([FromBody] int? userId)
         {
-            var enrollments = _context.CourseEnrollments.ToList();
+            var query = _context.CourseEnrollments.AsQueryable();
+            
+            if (userId.HasValue)
+            {
+                query = query.Where(e => e.UserId == userId.Value);
+            }
+            var enrollments = query
+                .Include(e => e.User)
+                .Include(e => e.Course)
+                .ToList();
+
             var enrollmentsDto = _mapper.Map<List<CourseEnrollmentReadDto>>(enrollments);
             return Ok(enrollmentsDto);
         }
