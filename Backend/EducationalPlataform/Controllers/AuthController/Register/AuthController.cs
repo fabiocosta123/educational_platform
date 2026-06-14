@@ -83,7 +83,9 @@ namespace EducationalPlataform.Controllers.AuthController.Register
                 Subject = new ClaimsIdentity(new[]
                 {
             new Claim(ClaimTypes.Name, user.UserName),
-            new Claim(ClaimTypes.Role, user.Profile.ToString())
+            new Claim(ClaimTypes.Role, user.Profile.ToString()),
+            new Claim(ClaimTypes.NameIdentifier, user.Id.ToString())
+
         }),
                 Expires = DateTime.UtcNow.AddHours(2),
                 SigningCredentials = new SigningCredentials(new SymmetricSecurityKey(key), SecurityAlgorithms.HmacSha256Signature)
