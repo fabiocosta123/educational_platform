@@ -9,5 +9,10 @@
         // Opcional: incluir informações adicionais
         public string? UserName { get; set; }
         public string? CourseTitle { get; set; }
+
+        public int ProgressPercentage { get; set; }
+        public string Status { get; set; }
+        public int CompletedLessons { get; set; }
+        public int TotalLessons { get; set; }
     }
 }

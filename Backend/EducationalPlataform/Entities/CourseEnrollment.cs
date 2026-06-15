@@ -15,6 +15,8 @@
 
         public decimal? FinalGrade { get; set; }
         public int ProgressPercentage { get; set; }
+        public int CompletedLessons { get; set; }
+        public int TotalLessons { get; set; }
         public string Status { get; set; } = "Ativo";
 
         public CourseEnrollment() { }
