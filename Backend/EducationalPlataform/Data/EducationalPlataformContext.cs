@@ -42,6 +42,11 @@ namespace EducationalPlataform.Data
                 .HasForeignKey(ce => ce.CourseId)
                 .OnDelete(DeleteBehavior.Cascade);
 
+            modelBuilder.Entity<CourseEnrollment>()
+                .Property(e => e.FinalGrade)
+                .HasPrecision(5, 2); 
+
+
 
             // Relationship 1:N (Course → Lessons)
             modelBuilder.Entity<Lesson>()
