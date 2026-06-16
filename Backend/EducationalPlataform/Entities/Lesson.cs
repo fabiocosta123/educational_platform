@@ -17,17 +17,22 @@ namespace EducationalPlataform.Entities
         public int CourseId { get; set; }
         public Course Course { get; set; }
 
+        public int TeacherId { get; set; }
+        public User Teacher { get; set; }
+
 
         // constructors
         public Lesson() { }
 
-        public Lesson(int id, string? title, string? content, DateTime date, int courseId)
+        public Lesson(string? title, string? content, DateTime date, int courseId, int teacherId)
         {
-            Id = id;
+            
             Title = title;
             Content = content;
             Date = date;
             CourseId = courseId;
+            TeacherId = teacherId;
+            
         }
 
     }

@@ -36,13 +36,16 @@ namespace EducationalPlataform.Controllers.AuthController.Register
             if (await _context.Users.AnyAsync(u => u.UserName == dto.UserName))
                 throw new ArgumentException("Username already exists.");
 
+            if (dto.Profile == 0)
+                return BadRequest("Selecione um perfil válido");
+
             var user = new User
             {
                 UserName = dto.UserName,
                 UserEmail = dto.UserEmail,
                 CPF = dto.CPF,
                 BirthDate = dto.BirthDate,
-                Profile = dto.Profile
+                Profile = (UserProfile)dto.Profile
             };
 
             user.PasswordHash = _passwordHasher.HashPassword(user, dto.Password);
@@ -82,17 +85,36 @@ namespace EducationalPlataform.Controllers.AuthController.Register
             {
                 Subject = new ClaimsIdentity(new[]
                 {
-            new Claim(ClaimTypes.Name, user.UserName),
-            new Claim(ClaimTypes.Role, user.Profile.ToString()),
-            new Claim(ClaimTypes.NameIdentifier, user.Id.ToString())
+                    new Claim(ClaimTypes.Name, user.UserName),
+                    new Claim(ClaimTypes.Role, user.Profile.ToString()),
+                    new Claim(ClaimTypes.NameIdentifier, user.Id.ToString()),
+                    new Claim("profile", ((int)user.Profile).ToString())
 
-        }),
+                }),
                 Expires = DateTime.UtcNow.AddHours(2),
                 SigningCredentials = new SigningCredentials(new SymmetricSecurityKey(key), SecurityAlgorithms.HmacSha256Signature)
             };
 
             var token = tokenHandler.CreateToken(tokenDescriptor);
             return Ok(new { token = tokenHandler.WriteToken(token) });
+        }
+
+        [HttpGet("me")]
+        public async Task<IActionResult> Me()
+        {
+            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (userId == null) return Unauthorized();
+
+            var user = await _context.Users.FindAsync(int.Parse(userId));
+            if (user == null) return NotFound();
+
+            return Ok(new
+            {
+                user.Id,
+                user.UserName,
+                user.UserEmail,
+                profile = (int)user.Profile
+            });
         }
 
     }

@@ -4,6 +4,7 @@ using EducationalPlataform.Entities;
 using EducationalPlataform.DTOs;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Authorization;
+using System.Security.Claims;
 
 namespace EducationalPlataform.Controllers
 {
@@ -43,12 +44,20 @@ namespace EducationalPlataform.Controllers
         }
 
         [HttpPost]
-        public ActionResult<LessonReadDto> Create([FromBody] LessonCreateDto dto)
+        public async Task<ActionResult<LessonReadDto>> Create([FromBody] LessonCreateDto dto)
         {
-            var lesson = _mapper.Map<Lesson>(dto);
+            var teacherId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier));
+
+            var lesson = new Lesson(
+                dto.Title,
+                dto.Content,
+                dto.Date,
+                dto.CourseId,
+                teacherId
+             );
 
             _context.Lessons.Add(lesson);
-            _context.SaveChanges();
+            await _context.SaveChangesAsync();
 
             var lessonReadDto = _mapper.Map<LessonReadDto>(lesson);
 
@@ -56,14 +65,14 @@ namespace EducationalPlataform.Controllers
         }
 
         [HttpPut("{id}")]
-        public ActionResult Update(int id, [FromBody] LessonUpdateDto dto)
+        public async Task<ActionResult> Update(int id, [FromBody] LessonUpdateDto dto)
         {
-            var lesson = _context.Lessons.Find(id);
+            var lesson = _context.Lessons.FindAsync(id);
             if (lesson == null)
-                throw new ArgumentException($"Course with id {id} not found");
+                throw new ArgumentException($"Lesson with id {id} not found");
 
             _mapper.Map(dto, lesson);
-            _context.SaveChanges();
+            await _context.SaveChangesAsync();
             
             return NoContent();
         }

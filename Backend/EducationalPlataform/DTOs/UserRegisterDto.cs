@@ -10,6 +10,6 @@ namespace EducationalPlataform.DTOs
         public string UserEmail { get; set; }
         public string CPF {  get; set; }
         public DateTime BirthDate { get; set; }
-        public UserProfile Profile { get; set; }
+        public int Profile { get; set; }
     }
 }
