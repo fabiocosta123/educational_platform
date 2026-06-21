@@ -3,8 +3,9 @@ using EducationalPlataform.Data;
 using EducationalPlataform.DTOs;
 using EducationalPlataform.Entities;
 using Microsoft.AspNetCore.Mvc;
-using EducationalPlataform.Middleware;
 using Microsoft.AspNetCore.Authorization;
+using System.Security.Claims;
+using Microsoft.EntityFrameworkCore;
 
 namespace EducationalPlataform.Controllers
 {
@@ -46,6 +47,13 @@ namespace EducationalPlataform.Controllers
             return Ok(courseDto);
         }
 
+        [HttpGet("teacher/{teacherId}/count")]
+        public ActionResult<int> GetCoursesCountByTeacher(int teacherId)
+        {
+            var count = _context.Courses.Count(c => c.CreatorId == teacherId);
+            return Ok(count);
+        }
+
         [HttpPost]
         public ActionResult<CourseReadDto> Create([FromBody] CourseCreateDto dto)
         {
@@ -85,6 +93,35 @@ namespace EducationalPlataform.Controllers
             _context.Courses.Remove(course);
             _context.SaveChanges();
             return NoContent();
+        }
+
+        [Authorize(Roles = "Teacher")]
+        [HttpGet("teacher/{teacherId}")]
+        public async Task<ActionResult<IEnumerable<CourseReadDto>>> GetCoursesByTeacher(int teacherId)
+        {
+            var courses = await _context.Courses
+                .Where(c => c.CreatorId == teacherId)
+                .ToListAsync();
+
+            var coursesDto = _mapper.Map<List<CourseReadDto>>(courses);
+            return Ok(coursesDto);
+        }
+
+        [Authorize(Roles = "Teacher")]
+        [HttpGet("my-courses")]
+        public async Task<ActionResult<IEnumerable<CourseReadDto>>> GetMyCourses()
+        {
+            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (string.IsNullOrEmpty(userId)) return Unauthorized();
+
+            if (!int.TryParse(userId, out var id)) return Unauthorized();
+
+            var courses = await _context.Courses
+                .Where(c => c.CreatorId == id)
+                .ToListAsync();
+
+            var coursesDto = _mapper.Map<List<CourseReadDto>>(courses);
+            return Ok(coursesDto);
         }
     }
 }

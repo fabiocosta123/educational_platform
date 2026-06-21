@@ -43,6 +43,25 @@ namespace EducationalPlataform.Controllers
             return Ok(lessonDto);
         }
 
+
+        [HttpGet("teacher/{teacherId}/stats")]
+        public ActionResult<object> GetLessonStatsByTeacher(int teacherId)
+        {
+            var lessons = _context.Lessons.Where(l => l.TeacherId == teacherId).ToList();
+
+            var count = lessons.Count;
+            var nextLesson = lessons
+                .Where(l => l.Date > DateTime.Now)
+                .OrderBy(l => l.Date)
+                .FirstOrDefault();
+
+            return Ok(new
+            {
+                totalLessons = count,
+                nextLessonDate = nextLesson?.Date
+            });
+        }
+
         [HttpPost]
         public async Task<ActionResult<LessonReadDto>> Create([FromBody] LessonCreateDto dto)
         {

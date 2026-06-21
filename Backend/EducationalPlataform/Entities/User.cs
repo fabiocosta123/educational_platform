@@ -1,6 +1,6 @@
 ﻿using EducationalPlataform.Models.Enums;
-using Microsoft.OpenApi.MicrosoftExtensions;
 using System.ComponentModel.DataAnnotations;
+
 
 namespace EducationalPlataform.Entities
 {
@@ -9,6 +9,7 @@ namespace EducationalPlataform.Entities
         public int Id { get; set; }
        
         public string? UserName { get; set; }
+        [EmailAddress(ErrorMessage = "Email inválido.")]
 
         public string? UserEmail { get; set; }
 
@@ -28,6 +29,9 @@ namespace EducationalPlataform.Entities
         public ICollection<Course> CoursesCreated { get; set; } = new List<Course>();
         public ICollection<CourseEnrollment> CoursesEnrolled { get; set; } = new List<CourseEnrollment>();
 
+        public ICollection<Lesson> LessonsTaught { get; set; } = new List<Lesson>();
+
+
         // constructor
         public User() { }
 
@@ -39,7 +43,15 @@ namespace EducationalPlataform.Entities
             PasswordHash = passwordHash;
             CPF = cpf;
             BirthDate = birthDate;
-            Profile = Enum.Parse<UserProfile>(profile);
+            
+            if (Enum.TryParse<UserProfile>(profile, true, out var parsedProfile))
+            {
+                Profile = parsedProfile;
+            }
+            else
+            {
+                throw new ArgumentException("Perfil inválido", nameof(profile));
+            }
         }
     }
 }

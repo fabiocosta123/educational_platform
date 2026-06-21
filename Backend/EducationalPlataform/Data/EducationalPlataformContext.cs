@@ -18,6 +18,15 @@ namespace EducationalPlataform.Data
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
+            base.OnModelCreating(modelBuilder);
+
+            // configuração da Fk TeacherId em Lesson
+            modelBuilder.Entity<Lesson>()
+                .HasOne(l => l.Teacher)
+                .WithMany(u => u.LessonsTaught)
+                .HasForeignKey(l => l.TeacherId)
+                .OnDelete(DeleteBehavior.Restrict);
+
             // relationships 1:N User - Course Create 
 
             modelBuilder.Entity<Course>()

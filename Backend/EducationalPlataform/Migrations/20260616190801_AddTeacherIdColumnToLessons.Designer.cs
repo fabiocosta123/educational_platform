@@ -4,6 +4,7 @@ using EducationalPlataform.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
@@ -11,9 +12,11 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace EducationalPlataform.Migrations
 {
     [DbContext(typeof(EducationalPlataformContext))]
-    partial class EducationalPlataformContextModelSnapshot : ModelSnapshot
+    [Migration("20260616190801_AddTeacherIdColumnToLessons")]
+    partial class AddTeacherIdColumnToLessons
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -193,9 +196,9 @@ namespace EducationalPlataform.Migrations
                         .IsRequired();
 
                     b.HasOne("EducationalPlataform.Entities.User", "Teacher")
-                        .WithMany("LessonsTaught")
+                        .WithMany()
                         .HasForeignKey("TeacherId")
-                        .OnDelete(DeleteBehavior.Restrict)
+                        .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
                     b.Navigation("Course");
@@ -215,8 +218,6 @@ namespace EducationalPlataform.Migrations
                     b.Navigation("CoursesCreated");
 
                     b.Navigation("CoursesEnrolled");
-
-                    b.Navigation("LessonsTaught");
                 });
 #pragma warning restore 612, 618
         }

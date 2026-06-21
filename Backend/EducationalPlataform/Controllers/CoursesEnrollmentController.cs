@@ -52,6 +52,21 @@ namespace EducationalPlataform.Controllers
             return Ok(enrollmentDto);
         }
 
+        [HttpGet("teacher/{teacherId}/students-count")]
+        public ActionResult<int> GetStudentsCountByTeacher(int teacherId)
+        {
+            var coursesIds = _context.Courses
+                .Where(c => c.CreatorId == teacherId)
+                .Select(c => c.Id)
+                .ToList();
+
+            var count = _context.CourseEnrollments
+                .Count(e => coursesIds.Contains(e.CourseId));
+
+            return Ok(count);
+        }
+
+
         [HttpPost]
         public ActionResult<CourseEnrollmentReadDto> Create([FromBody] CourseEnrollmentCreateDto dto)
         {
