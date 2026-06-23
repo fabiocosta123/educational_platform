@@ -1,4 +1,5 @@
 ﻿using EducationalPlataform.Data;
+using EducationalPlataform.DTOs;
 using EducationalPlataform.Models.Enums;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -19,33 +20,25 @@ namespace EducationalPlataform.Controllers
         [HttpGet("dashboard")]
         public async Task<IActionResult> GetDashboard()
         {
-            var coursesCount = await _context.Courses.CountAsync();
-            var teachersCount = await _context.Users.CountAsync(u => u.Profile == UserProfile.Teacher);
-            var studentsCount = await _context.Users.CountAsync(u => u.Profile == UserProfile.Student);
-            var coordinatorCount = await _context.Users.CountAsync(u => u.Profile == UserProfile.Cordinator);
-            var nextLessonsCount = await _context.Lessons.CountAsync(l => l.Date >= DateTime.Now);
+            var dto = new CoordinatorDashboardDto
+           {
+               CoursesCount = await _context.Courses.CountAsync(),
+               TeachersCount = await _context.Users.CountAsync(u => u.Profile == UserProfile.Teacher),
+               StudentsCount = await _context.Users.CountAsync(u => u.Profile == UserProfile.Student),
+               CoordinatorCount = await _context.Users.CountAsync(u => u.Profile == UserProfile.Cordinator),
+               NextLessonsCount = await _context.Lessons.CountAsync(l => l.Date >= DateTime.Now),
+               AvgProgress = await _context.CourseEnrollments.AnyAsync()
+               ? (int)await _context.CourseEnrollments.AverageAsync(e => e.ProgressPercentage) : 0,
+               Courses = await _context.Courses
+               .Select(c => new CourseSummaryDto
+               {
+                   Id = c.Id,
+                   Title = c.Title,
+                   StudentsCount = _context.CourseEnrollments.Count(e => e.CourseId == c.Id)
+               }).ToListAsync(),
+           };
 
-            var avgProgress = await _context.CourseEnrollments.AnyAsync()
-                ? (int)await _context.CourseEnrollments.AverageAsync(e => e.ProgressPercentage) : 0;
-
-            var courses = await _context.Courses
-                .Select(c => new
-                {
-                    c.Id,
-                    c.Title,
-                    studentsCount = _context.CourseEnrollments.Count(e => e.CourseId == c.Id)
-                }).ToListAsync();
-
-            return Ok(new
-            {
-                coursesCount,
-                teachersCount,
-                studentsCount,
-                coordinatorCount,
-                nextLessonsCount,
-                avgProgress,
-                courses
-            });
+            return Ok(dto);
         }
     }
 }
