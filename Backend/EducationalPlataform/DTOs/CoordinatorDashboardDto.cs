@@ -18,5 +18,6 @@
         public int Id { get; set; }
         public string Title { get; set; }
         public int StudentsCount { get; set; }
+        public int Progress { get; set; }
     }
 }
