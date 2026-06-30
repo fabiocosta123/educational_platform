@@ -9,8 +9,8 @@ namespace EducationalPlataform.Entities
         public int Id { get; set; }
        
         public string? UserName { get; set; }
-        [EmailAddress(ErrorMessage = "Email inválido.")]
 
+        [EmailAddress(ErrorMessage = "Email inválido.")]
         public string? UserEmail { get; set; }
 
         

@@ -8,14 +8,14 @@ namespace EducationalPlataform.Profiles
     {
         public CourseProfile()
         {
-            // Create → Course
-            CreateMap<CourseCreateDto, Course>();
-
             // Update → Course
             CreateMap<CourseUpdateDto, Course>();
 
-            // Course → Read
-            CreateMap<Course, CourseReadDto>();
+            CreateMap<Course, CourseReadDto>()
+                .ForMember(dest => dest.TeacherName, opt => opt.MapFrom(src => src.Teacher.UserName));
+
+            CreateMap<CourseCreateDto, Course>();
+
         }
     }
 }

@@ -93,6 +93,8 @@ builder.Services.AddCors(options =>
 
 // AutoMapper
 builder.Services.AddAutoMapper(typeof(Program).Assembly);
+builder.Services.AddAutoMapper(AppDomain.CurrentDomain.GetAssemblies());
+
 
 // DbContext
 builder.Services.AddDbContext<EducationalPlataformContext>(options =>

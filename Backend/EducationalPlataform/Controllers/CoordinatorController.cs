@@ -25,7 +25,7 @@ namespace EducationalPlataform.Controllers
                CoursesCount = await _context.Courses.CountAsync(),
                TeachersCount = await _context.Users.CountAsync(u => u.Profile == UserProfile.Teacher),
                StudentsCount = await _context.Users.CountAsync(u => u.Profile == UserProfile.Student),
-               CoordinatorCount = await _context.Users.CountAsync(u => u.Profile == UserProfile.Cordinator),
+               CoordinatorCount = await _context.Users.CountAsync(u => u.Profile == UserProfile.Coordinator),
                NextLessonsCount = await _context.Lessons.CountAsync(l => l.Date >= DateTime.Now),
                AvgProgress = await _context.CourseEnrollments.AnyAsync()
                ? (int)await _context.CourseEnrollments.AverageAsync(e => e.ProgressPercentage) : 0,

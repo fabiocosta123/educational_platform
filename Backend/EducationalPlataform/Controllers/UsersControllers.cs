@@ -37,6 +37,7 @@ public class UsersController : ControllerBase
         return Ok(userDto);
     }
 
+
     [HttpPost]
     public ActionResult<UserReadDto> Create([FromBody] UserCreateDto dto)
     {

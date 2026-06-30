@@ -12,8 +12,8 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace EducationalPlataform.Migrations
 {
     [DbContext(typeof(EducationalPlataformContext))]
-    [Migration("20260616201817_UpdateLessonTeacherRelationship")]
-    partial class UpdateLessonTeacherRelationship
+    [Migration("20260629230100_InitialClean")]
+    partial class InitialClean
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -39,6 +39,9 @@ namespace EducationalPlataform.Migrations
                     b.Property<string>("Description")
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<int>("TeacherId")
+                        .HasColumnType("int");
+
                     b.Property<string>("Title")
                         .IsRequired()
                         .HasMaxLength(100)
@@ -47,6 +50,8 @@ namespace EducationalPlataform.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("CreatorId");
+
+                    b.HasIndex("TeacherId");
 
                     b.ToTable("Courses");
                 });
@@ -162,10 +167,18 @@ namespace EducationalPlataform.Migrations
                     b.HasOne("EducationalPlataform.Entities.User", "Creator")
                         .WithMany("CoursesCreated")
                         .HasForeignKey("CreatorId")
-                        .OnDelete(DeleteBehavior.Restrict)
+                        .OnDelete(DeleteBehavior.ClientNoAction)
+                        .IsRequired();
+
+                    b.HasOne("EducationalPlataform.Entities.User", "Teacher")
+                        .WithMany()
+                        .HasForeignKey("TeacherId")
+                        .OnDelete(DeleteBehavior.ClientNoAction)
                         .IsRequired();
 
                     b.Navigation("Creator");
+
+                    b.Navigation("Teacher");
                 });
 
             modelBuilder.Entity("EducationalPlataform.Entities.CourseEnrollment", b =>
@@ -198,7 +211,7 @@ namespace EducationalPlataform.Migrations
                     b.HasOne("EducationalPlataform.Entities.User", "Teacher")
                         .WithMany("LessonsTaught")
                         .HasForeignKey("TeacherId")
-                        .OnDelete(DeleteBehavior.Restrict)
+                        .OnDelete(DeleteBehavior.ClientNoAction)
                         .IsRequired();
 
                     b.Navigation("Course");

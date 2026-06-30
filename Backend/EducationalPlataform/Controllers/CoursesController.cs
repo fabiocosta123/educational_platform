@@ -6,6 +6,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Authorization;
 using System.Security.Claims;
 using Microsoft.EntityFrameworkCore;
+using EducationalPlataform.Models.Enums;
 
 namespace EducationalPlataform.Controllers
 {
@@ -57,16 +58,31 @@ namespace EducationalPlataform.Controllers
         [HttpPost]
         public ActionResult<CourseReadDto> Create([FromBody] CourseCreateDto dto)
         {
+            // Mapeia os campos básicos
             var course = _mapper.Map<Course>(dto);
+
+            // Carregar professor
+            var teacher = _context.Users
+                .FirstOrDefault(u => u.Id == dto.TeacherId && u.Profile == UserProfile.Teacher);
+
+            if (teacher == null)
+                return BadRequest("Professor não encontrado.");
+
+            course.Teacher = teacher;
+
+            // Criador = coordenador logado
+            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (int.TryParse(userId, out var creatorId))
+                course.CreatorId = creatorId;
 
             _context.Courses.Add(course);
             _context.SaveChanges();
 
             var courseReadDto = _mapper.Map<CourseReadDto>(course);
-
             return CreatedAtAction(nameof(GetById), new { id = course.Id }, courseReadDto);
         }
-        
+
+
 
         [HttpPut("{id}")]
         public ActionResult Update(int id, [FromBody] CourseUpdateDto dto)

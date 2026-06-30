@@ -12,5 +12,8 @@ namespace EducationalPlataform.DTOs
 
         [Required(ErrorMessage = "O Criador é obrigatório.")]
         public int CreatorId { get; set; }
+
+        [Required(ErrorMessage = "Professor é obrigatório.")]
+        public int TeacherId { get; set; }
     }
 }

@@ -1,6 +1,5 @@
 ﻿using EducationalPlataform.Entities;
 using Microsoft.EntityFrameworkCore;
-using System.Security.Cryptography.X509Certificates;
 
 namespace EducationalPlataform.Data
 {
@@ -15,27 +14,32 @@ namespace EducationalPlataform.Data
         public DbSet<Lesson> Lessons { get; set; }
         public DbSet<CourseEnrollment> CourseEnrollments { get; set; }
 
-
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             base.OnModelCreating(modelBuilder);
 
-            // configuração da Fk TeacherId em Lesson
+            // Relationship Lesson → Teacher
             modelBuilder.Entity<Lesson>()
                 .HasOne(l => l.Teacher)
                 .WithMany(u => u.LessonsTaught)
                 .HasForeignKey(l => l.TeacherId)
-                .OnDelete(DeleteBehavior.Restrict);
+                .OnDelete(DeleteBehavior.ClientNoAction);
 
-            // relationships 1:N User - Course Create 
-
+            // Relationship Course → Creator
             modelBuilder.Entity<Course>()
-                .HasOne(u => u.Creator)
-                .WithMany(c => c.CoursesCreated)
+                .HasOne(c => c.Creator)
+                .WithMany(u => u.CoursesCreated)
                 .HasForeignKey(c => c.CreatorId)
-                .OnDelete(DeleteBehavior.Restrict);
+                .OnDelete(DeleteBehavior.ClientNoAction);
 
-            // relationships N:N User - Course
+            // Relationship Course → Teacher
+            modelBuilder.Entity<Course>()
+                .HasOne(c => c.Teacher)
+                .WithMany() // ou .WithMany(u => u.CoursesTaught) se quiser relação inversa
+                .HasForeignKey(c => c.TeacherId)
+                .OnDelete(DeleteBehavior.ClientNoAction);
+
+            // Relationship CourseEnrollment (N:N User ↔ Course)
             modelBuilder.Entity<CourseEnrollment>()
                 .HasKey(ce => new { ce.UserId, ce.CourseId });
 
@@ -53,18 +57,14 @@ namespace EducationalPlataform.Data
 
             modelBuilder.Entity<CourseEnrollment>()
                 .Property(e => e.FinalGrade)
-                .HasPrecision(5, 2); 
+                .HasPrecision(5, 2);
 
-
-
-            // Relationship 1:N (Course → Lessons)
+            // Relationship Lesson → Course
             modelBuilder.Entity<Lesson>()
                 .HasOne(l => l.Course)
                 .WithMany(c => c.Lessons)
                 .HasForeignKey(l => l.CourseId)
                 .OnDelete(DeleteBehavior.Cascade);
         }
-
-
     }
 }

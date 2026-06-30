@@ -4,6 +4,6 @@
     {
         Student = 1,
         Teacher = 2,
-        Cordinator = 3
+        Coordinator = 3
     }
 }

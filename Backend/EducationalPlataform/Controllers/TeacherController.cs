@@ -1,20 +1,25 @@
-﻿using Microsoft.AspNetCore.Mvc;
-using Microsoft.AspNetCore.Authorization;
-using Microsoft.EntityFrameworkCore;
+﻿using AutoMapper;
 using EducationalPlataform.Data;
+using EducationalPlataform.DTOs;
+using EducationalPlataform.Models.Enums;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 
 namespace EducationalPlataform.Controllers
 {
-    [Authorize]
+    [Authorize(Roles = "Coordinator,Teacher")]
     [ApiController]
     [Route("api/[controller]")]
     public class TeacherController : ControllerBase
     {
         private readonly EducationalPlataformContext _context;
+        private readonly IMapper _mapper;
 
-        public TeacherController(EducationalPlataformContext context)
+        public TeacherController(EducationalPlataformContext context, IMapper mapper)
         {
             _context = context;
+            _mapper = mapper;
         }
 
         [HttpGet("{teacherId}/dashboard")]
@@ -45,5 +50,18 @@ namespace EducationalPlataform.Controllers
                 nextLessonDate = nextLesson?.Date
             });
         }
+
+
+        [HttpGet]
+        public ActionResult<IEnumerable<TeacherReadDto>> GetTeachers()
+        {
+            var teachers = _context.Users
+                .Where(u => u.Profile == UserProfile.Teacher)
+                .ToList();
+
+            var teachersDto = _mapper.Map<List<TeacherReadDto>>(teachers);
+            return Ok(teachersDto);
+        }
+
     }
 }
