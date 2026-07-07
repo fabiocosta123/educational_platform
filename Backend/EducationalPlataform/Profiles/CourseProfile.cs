@@ -12,7 +12,9 @@ namespace EducationalPlataform.Profiles
             CreateMap<CourseUpdateDto, Course>();
 
             CreateMap<Course, CourseReadDto>()
-                .ForMember(dest => dest.TeacherName, opt => opt.MapFrom(src => src.Teacher.UserName));
+                .ForMember(dest => dest.TeacherName, opt => opt.MapFrom(src => src.Teacher.UserName))
+                .ForMember(dest => dest.LessonsCount, opt => opt.MapFrom(src => src.Lessons.Count));
+
 
             CreateMap<CourseCreateDto, Course>();
 
