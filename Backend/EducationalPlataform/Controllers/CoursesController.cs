@@ -68,10 +68,10 @@ namespace EducationalPlataform.Controllers
         [HttpPost]
         public ActionResult<CourseReadDto> Create([FromBody] CourseCreateDto dto)
         {
-            // Mapeia os campos básicos
+            
             var course = _mapper.Map<Course>(dto);
 
-            // Carregar professor
+            
             var teacher = _context.Users
                 .FirstOrDefault(u => u.Id == dto.TeacherId && u.Profile == UserProfile.Teacher);
 
@@ -79,8 +79,11 @@ namespace EducationalPlataform.Controllers
                 return BadRequest("Professor não encontrado.");
 
             course.Teacher = teacher;
+            course.TeacherId = teacher.Id;
 
-            // Criador = coordenador logado
+            teacher.Courses.Add(course);
+
+
             var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
             if (int.TryParse(userId, out var creatorId))
                 course.CreatorId = creatorId;

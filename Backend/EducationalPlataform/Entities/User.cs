@@ -24,10 +24,13 @@ namespace EducationalPlataform.Entities
         
         public UserProfile Profile { get; set; }
 
+        public string Role { get; set; }
 
         // relacionships
         public ICollection<Course> CoursesCreated { get; set; } = new List<Course>();
         public ICollection<CourseEnrollment> CoursesEnrolled { get; set; } = new List<CourseEnrollment>();
+
+        public ICollection<Course> Courses { get; set; } = new List<Course>();
 
         public ICollection<Lesson> LessonsTaught { get; set; } = new List<Lesson>();
 

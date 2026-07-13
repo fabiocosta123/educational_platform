@@ -1,6 +1,7 @@
 ﻿using AutoMapper;
 using EducationalPlataform.Data;
 using EducationalPlataform.DTOs;
+using EducationalPlataform.Entities;
 using EducationalPlataform.Models.Enums;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -10,7 +11,7 @@ namespace EducationalPlataform.Controllers
 {
     [Authorize(Roles = "Coordinator,Teacher")]
     [ApiController]
-    [Route("api/[controller]")]
+    [Route("api/[controller]s")] 
     public class TeacherController : ControllerBase
     {
         private readonly EducationalPlataformContext _context;
@@ -22,15 +23,15 @@ namespace EducationalPlataform.Controllers
             _mapper = mapper;
         }
 
+        
         [HttpGet("{teacherId}/dashboard")]
-        public ActionResult<object> GetDashboard(int teacherId)
+        public async Task<ActionResult<object>> GetDashboard(int teacherId)
         {
-            
-            var courses = _context.Courses
-                .Where(c => c.CreatorId == teacherId)
-                .Include(c => c.Lessons)              
-                .Include(c => c.EnrolledUsers)    
-                .ToList();
+            var courses = await _context.Courses
+                .Where(c => c.TeacherId == teacherId)
+                .Include(c => c.Lessons)
+                .Include(c => c.EnrolledUsers)
+                .ToListAsync();
 
             var coursesCount = courses.Count;
             var lessonsCount = courses.Sum(c => c.Lessons.Count);
@@ -51,15 +52,30 @@ namespace EducationalPlataform.Controllers
             });
         }
 
-
+        
         [HttpGet]
-        public ActionResult<IEnumerable<TeacherReadDto>> GetTeachers()
+        public async Task<ActionResult<IEnumerable<TeacherReadDto>>> GetTeachers()
         {
-            var teachers = _context.Users
+            var teachers = await _context.Users
                 .Where(u => u.Profile == UserProfile.Teacher)
-                .ToList();
+                .Include(u => u.Courses) 
+                    .ThenInclude(c => c.Lessons)
+                .Include(u => u.Courses)
+                    .ThenInclude(c => c.EnrolledUsers)
+                .ToListAsync();
 
             var teachersDto = _mapper.Map<List<TeacherReadDto>>(teachers);
+            return Ok(teachersDto);
+        }
+
+        [HttpGet("list")]
+        public async Task<ActionResult<IEnumerable<UserReadDto>>> GetTeachersList()
+        {
+            var teachers = await _context.Users
+                .Where(u => u.Profile == UserProfile.Teacher)
+                .ToListAsync();
+
+            var teachersDto = _mapper.Map<List<UserReadDto>>(teachers);
             return Ok(teachersDto);
         }
 

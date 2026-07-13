@@ -26,6 +26,7 @@ namespace EducationalPlataform.Entities
         public ICollection<CourseEnrollment> EnrolledUsers { get; set; } = new List<CourseEnrollment>();
         public ICollection<Lesson> Lessons { get; set; } = new List<Lesson>();
 
+        
 
         public Course() { }
 

@@ -8,6 +8,7 @@ public class TeacherProfile : Profile
     {
         // Ajuste conforme o nome da propriedade na entidade User
         CreateMap<User, TeacherReadDto>()
-            .ForMember(dest => dest.UserName, opt => opt.MapFrom(src => src.UserName));
+            .ForMember(dest => dest.UserName, opt => opt.MapFrom(src => src.UserName))
+            .ForMember(dest => dest.Courses, opt => opt.MapFrom(src => src.Courses)); 
     }
 }
