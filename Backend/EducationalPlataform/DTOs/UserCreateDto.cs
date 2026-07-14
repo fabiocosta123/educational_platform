@@ -23,4 +23,5 @@ public class UserCreateDto
 
     [Required(ErrorMessage = "Perfil é obrigatório.")]
     public UserProfile Profile { get; set; }
+    public string Role { get; set; } = string.Empty.ToLower();
 }

@@ -11,7 +11,7 @@ namespace EducationalPlataform.Controllers
 {
     [Authorize(Roles = "Coordinator,Teacher")]
     [ApiController]
-    [Route("api/[controller]s")] 
+    [Route("api/[controller]s")]
     public class TeacherController : ControllerBase
     {
         private readonly EducationalPlataformContext _context;
@@ -23,7 +23,7 @@ namespace EducationalPlataform.Controllers
             _mapper = mapper;
         }
 
-        
+
         [HttpGet("{teacherId}/dashboard")]
         public async Task<ActionResult<object>> GetDashboard(int teacherId)
         {
@@ -52,13 +52,13 @@ namespace EducationalPlataform.Controllers
             });
         }
 
-        
+
         [HttpGet]
         public async Task<ActionResult<IEnumerable<TeacherReadDto>>> GetTeachers()
         {
             var teachers = await _context.Users
                 .Where(u => u.Profile == UserProfile.Teacher)
-                .Include(u => u.Courses) 
+                .Include(u => u.Courses)
                     .ThenInclude(c => c.Lessons)
                 .Include(u => u.Courses)
                     .ThenInclude(c => c.EnrolledUsers)
@@ -78,6 +78,33 @@ namespace EducationalPlataform.Controllers
             var teachersDto = _mapper.Map<List<UserReadDto>>(teachers);
             return Ok(teachersDto);
         }
+
+
+        
+        [HttpPost]
+        public async Task<ActionResult<TeacherReadDto>> CreateTeacher([FromBody] UserCreateDto dto)
+        {
+            if (string.IsNullOrWhiteSpace(dto.UserName))
+                return BadRequest("Nome do professor é obrigatório.");
+
+            var teacher = new User
+            {
+                UserName = dto.UserName,
+                UserEmail = dto.UserEmail,
+                PasswordHash = dto.Password,
+                Profile = UserProfile.Teacher,
+                BirthDate = dto.BirthDate,
+                CPF = dto.CPF,
+                Role = string.IsNullOrEmpty(dto.Role) ? "Teacher" : dto.Role // garante valor
+            };
+
+            _context.Users.Add(teacher);
+            await _context.SaveChangesAsync();
+
+            var teacherDto = _mapper.Map<TeacherReadDto>(teacher);
+            return CreatedAtAction(nameof(GetTeachers), new { id = teacher.Id }, teacherDto);
+        }
+
 
     }
 }
