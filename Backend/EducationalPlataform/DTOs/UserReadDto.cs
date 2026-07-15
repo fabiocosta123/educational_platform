@@ -10,5 +10,12 @@ namespace EducationalPlataform.DTOs
         public string CPF { get; set; }
         public DateTime BirthDate { get; set; }
         public Profile UserProfile { get; set; }
+        public string Role { get; set; } = string.Empty;
+
+        //curso em que o aluno está matriculado
+        public List<CourseEnrollmentReadDto> CourseEnrolled { get; set; } = new();
+
+        // cursos criados (se for professor/coordenador)
+        public List<CourseReadDto> CoursesCreated { get; set; } = new();
     }
 }

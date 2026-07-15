@@ -97,6 +97,7 @@ namespace EducationalPlataform.Controllers
 
 
 
+       
         [HttpPut("{id}")]
         public ActionResult Update(int id, [FromBody] CourseUpdateDto dto)
         {
@@ -106,22 +107,40 @@ namespace EducationalPlataform.Controllers
 
             if (course == null) return NotFound();
 
-            course.Title = dto.Title;
-            course.Description = dto.Description;
+            // guarda o professor antigo
+            var oldTeacher = course.Teacher;
 
-            var teacher = _context.Users
+            // busca o novo professor
+            var newTeacher = _context.Users
+                .Include(t => t.Courses)
                 .FirstOrDefault(u => u.Id == dto.TeacherId && u.Profile == UserProfile.Teacher);
 
-            if (teacher == null)
+            if (newTeacher == null)
                 return BadRequest("Professor não encontrado.");
 
+            // atualiza dados do curso
+            course.Title = dto.Title;
+            course.Description = dto.Description;
             course.TeacherId = dto.TeacherId;
-            course.Teacher = teacher;
+            course.Teacher = newTeacher;
+
+            // remove o curso da lista do professor antigo
+            if (oldTeacher != null && oldTeacher.Id != newTeacher.Id)
+            {
+                oldTeacher.Courses.Remove(course);
+            }
+
+            // adiciona o curso à lista do novo professor
+            if (!newTeacher.Courses.Contains(course))
+            {
+                newTeacher.Courses.Add(course);
+            }
 
             _context.SaveChanges();
-            return Ok(_mapper.Map<CourseReadDto>(course));
 
+            return Ok(_mapper.Map<CourseReadDto>(course));
         }
+
 
 
 
