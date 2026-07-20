@@ -56,7 +56,9 @@ namespace EducationalPlataform.Controllers
         [HttpGet]
         public async Task<ActionResult<IEnumerable<TeacherReadDto>>> GetTeachers()
         {
-            var teachers = await _context.Users
+            try
+            {
+                var teachers = await _context.Users
                 .Where(u => u.Profile == UserProfile.Teacher)
                 .Include(u => u.Courses)
                     .ThenInclude(c => c.Lessons)
@@ -64,8 +66,13 @@ namespace EducationalPlataform.Controllers
                     .ThenInclude(c => c.EnrolledUsers)
                 .ToListAsync();
 
-            var teachersDto = _mapper.Map<List<TeacherReadDto>>(teachers);
-            return Ok(teachersDto);
+                var teachersDto = _mapper.Map<List<TeacherReadDto>>(teachers);
+                return Ok(teachersDto);
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, ex.Message);
+            }
         }
 
         [HttpGet("list")]

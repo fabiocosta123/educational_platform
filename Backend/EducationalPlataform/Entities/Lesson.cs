@@ -15,10 +15,10 @@ namespace EducationalPlataform.Entities
         // relationships
         [Required(ErrorMessage = "O curso é obrigatório.")]
         public int CourseId { get; set; }
-        public Course Course { get; set; }
+        public Course? Course { get; set; }
 
         public int TeacherId { get; set; }
-        public User Teacher { get; set; }
+        public User? Teacher { get; set; }
 
 
         // constructors

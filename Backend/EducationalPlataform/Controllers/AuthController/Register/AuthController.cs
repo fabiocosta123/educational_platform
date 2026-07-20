@@ -121,7 +121,7 @@ namespace EducationalPlataform.Controllers.AuthController.Register
                 Subject = new ClaimsIdentity(claims),
                 NotBefore = now,
                 IssuedAt = now,
-                Expires = now.AddHours(2),
+                Expires = now.AddHours(4),
                 Issuer = _configuration["Jwt:Issuer"],
                 Audience = _configuration["Jwt:Audience"],
                 SigningCredentials = new SigningCredentials(new SymmetricSecurityKey(key), SecurityAlgorithms.HmacSha256)

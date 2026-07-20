@@ -15,9 +15,9 @@ namespace EducationalPlataform.Entities
         public int CreatorId { get; set; }
         public User Creator { get; set; }
 
-        [Required(ErrorMessage = "Professor é obrigatório.")]
-        public int TeacherId { get; set; }
-        public User Teacher { get; set; }
+        
+        public int? TeacherId { get; set; }
+        public User? Teacher { get; set; }
 
 
 

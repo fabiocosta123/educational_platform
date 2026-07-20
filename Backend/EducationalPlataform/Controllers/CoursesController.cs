@@ -25,18 +25,29 @@ namespace EducationalPlataform.Controllers
             _mapper = mapper;
         }
 
+       
+        
+
         [AllowAnonymous]
         [HttpGet]
         public async Task<ActionResult<IEnumerable<CourseReadDto>>> GetAll()
         {
-            var courses =  await _context.Courses
-                .Include(c => c.Teacher)
-                .Include(c => c.Lessons)
-                .Include(c => c.EnrolledUsers)
-                .ToListAsync();
+            try
+            {
+                var courses = await _context.Courses
+                    .Include(c => c.Teacher)
+                    .Include(c => c.Lessons)
+                    .Include(c => c.EnrolledUsers)
+                    .ToListAsync();
 
-            var coursesDto = _mapper.Map<List<CourseReadDto>>(courses);
-            return Ok(coursesDto);
+                var coursesDto = _mapper.Map<List<CourseReadDto>>(courses);
+                return Ok(coursesDto);
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, ex.ToString());
+            }
+
 
         }
 
