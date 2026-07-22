@@ -110,6 +110,7 @@ public class UsersController : ControllerBase
         return CreatedAtAction(nameof(GetById), new { id = student.Id }, studentDto);
     }
 
+    
     [HttpPut("{id}")]
     public async Task<IActionResult> Update(int id, [FromBody] StudentUpdateDto dto)
     {
@@ -118,7 +119,6 @@ public class UsersController : ControllerBase
                 .ThenInclude(e => e.Course)
                     .ThenInclude(c => c.Teacher)
             .FirstOrDefaultAsync(u => u.Id == id);
-
 
         if (user == null)
             return NotFound();
@@ -130,26 +130,48 @@ public class UsersController : ControllerBase
         user.BirthDate = dto.BirthDate;
         user.Profile = UserProfile.Student;
 
-        // Mantém ou atualiza cursos
+        // 🔹 Atualiza matrículas
+        var existingCourseIds = user.CourseEnrollments.Select(e => e.CourseId).ToList();
+        var newCourseIds = dto.CourseEnrollments.Select(e => e.CourseId).ToList();
+
+        // Remove cursos que não estão mais na lista
+        var toRemove = user.CourseEnrollments.Where(e => !newCourseIds.Contains(e.CourseId)).ToList();
+        foreach (var enrollment in toRemove)
+            _context.CourseEnrollments.Remove(enrollment);
+
+        // Atualiza ou adiciona cursos
         foreach (var enrollmentDto in dto.CourseEnrollments)
         {
-            var enrollment = user.CourseEnrollments
-                .FirstOrDefault(e => e.CourseId == enrollmentDto.CourseId);
-
+            var enrollment = user.CourseEnrollments.FirstOrDefault(e => e.CourseId == enrollmentDto.CourseId);
             if (enrollment != null)
+            {
                 enrollment.Status = enrollmentDto.Status;
+            }
             else
+            {
                 user.CourseEnrollments.Add(new CourseEnrollment
                 {
                     CourseId = enrollmentDto.CourseId,
+                    UserId = user.Id,
                     Status = enrollmentDto.Status,
-                    UserId = user.Id
+                    ProgressPercentage = 0
                 });
+            }
         }
 
         await _context.SaveChangesAsync();
-        return NoContent();
+
+        //recarrega com includes Teacher e Course 
+        var updatedUser = await _context.Users
+            .Include(u => u.CourseEnrollments)
+                .ThenInclude(e => e.Course)
+                    .ThenInclude(c => c.Teacher)
+            .FirstOrDefaultAsync(u => u.Id == id);
+
+        var userDto = _mapper.Map<UserReadDto>(updatedUser);
+        return Ok(userDto);
     }
+
 
 
 
