@@ -38,6 +38,7 @@ namespace EducationalPlataform.Controllers
                     .Include(c => c.Teacher)
                     .Include(c => c.Lessons)
                     .Include(c => c.EnrolledUsers)
+                        .ThenInclude(e => e.User)                    
                     .ToListAsync();
 
                 var coursesDto = _mapper.Map<List<CourseReadDto>>(courses);
@@ -60,7 +61,9 @@ namespace EducationalPlataform.Controllers
                 .Include(c => c.Teacher)
                 .Include(c => c.Lessons)
                 .Include(c => c.EnrolledUsers)
+                    .ThenInclude(e => e.User)                
                 .FirstOrDefaultAsync(c => c.Id == id);
+
 
             if (course == null)
                 return NotFound();
@@ -118,10 +121,10 @@ namespace EducationalPlataform.Controllers
 
             if (course == null) return NotFound();
 
-            // guarda o professor antigo
+            
             var oldTeacher = course.Teacher;
 
-            // busca o novo professor
+            
             var newTeacher = _context.Users
                 .Include(t => t.Courses)
                 .FirstOrDefault(u => u.Id == dto.TeacherId && u.Profile == UserProfile.Teacher);
@@ -174,6 +177,8 @@ namespace EducationalPlataform.Controllers
                 .Include(c => c.Teacher)
                 .Include(c => c.Lessons)
                 .Include(c => c.EnrolledUsers)
+                    .ThenInclude(e => e.User)
+                .Include(c => c.Teacher)
                 .Where(c => c.CreatorId == teacherId)
                 .ToListAsync();
 
@@ -194,8 +199,11 @@ namespace EducationalPlataform.Controllers
                 .Include(c => c.Teacher)
                 .Include(c => c.Lessons)
                 .Include(c => c.EnrolledUsers)
+                    .ThenInclude(e => e.User)
+                .Include(c => c.Teacher)
                 .Where(c => c.CreatorId == id)
                 .ToListAsync();
+
 
             var coursesDto = _mapper.Map<List<CourseReadDto>>(courses);
             return Ok(coursesDto);

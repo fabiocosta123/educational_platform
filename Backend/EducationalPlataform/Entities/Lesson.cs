@@ -11,6 +11,8 @@ namespace EducationalPlataform.Entities
         public string? Content { get; set; }
         public DateTime Date { get; set; }
 
+        public bool IsCompleted { get; set; }
+
 
         // relationships
         [Required(ErrorMessage = "O curso é obrigatório.")]

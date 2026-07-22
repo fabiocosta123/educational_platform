@@ -23,7 +23,6 @@ namespace EducationalPlataform.Controllers
             _mapper = mapper;
         }
 
-
         [HttpGet("{teacherId}/dashboard")]
         public async Task<ActionResult<object>> GetDashboard(int teacherId)
         {
@@ -52,19 +51,19 @@ namespace EducationalPlataform.Controllers
             });
         }
 
-
         [HttpGet]
         public async Task<ActionResult<IEnumerable<TeacherReadDto>>> GetTeachers()
         {
             try
             {
                 var teachers = await _context.Users
-                .Where(u => u.Profile == UserProfile.Teacher)
-                .Include(u => u.Courses)
-                    .ThenInclude(c => c.Lessons)
-                .Include(u => u.Courses)
-                    .ThenInclude(c => c.EnrolledUsers)
-                .ToListAsync();
+                    .Where(u => u.Profile == UserProfile.Teacher)
+                    .Include(u => u.Courses)
+                        .ThenInclude(c => c.Lessons)
+                    .Include(u => u.Courses)
+                        .ThenInclude(c => c.EnrolledUsers)
+                            .ThenInclude(e => e.User)
+                    .ToListAsync();
 
                 var teachersDto = _mapper.Map<List<TeacherReadDto>>(teachers);
                 return Ok(teachersDto);
@@ -86,8 +85,6 @@ namespace EducationalPlataform.Controllers
             return Ok(teachersDto);
         }
 
-
-        
         [HttpPost]
         public async Task<ActionResult<TeacherReadDto>> CreateTeacher([FromBody] UserCreateDto dto)
         {
@@ -99,10 +96,11 @@ namespace EducationalPlataform.Controllers
                 UserName = dto.UserName,
                 UserEmail = dto.UserEmail,
                 PasswordHash = dto.Password,
+                PhoneNumber = dto.PhoneNumber,
                 Profile = UserProfile.Teacher,
                 BirthDate = dto.BirthDate,
                 CPF = dto.CPF,
-                Role = string.IsNullOrEmpty(dto.Role) ? "Teacher" : dto.Role // garante valor
+                Role = string.IsNullOrEmpty(dto.Role) ? "Teacher" : dto.Role
             };
 
             _context.Users.Add(teacher);
@@ -111,7 +109,5 @@ namespace EducationalPlataform.Controllers
             var teacherDto = _mapper.Map<TeacherReadDto>(teacher);
             return CreatedAtAction(nameof(GetTeachers), new { id = teacher.Id }, teacherDto);
         }
-
-
     }
 }

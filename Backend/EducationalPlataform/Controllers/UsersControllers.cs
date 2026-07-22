@@ -2,9 +2,10 @@
 using EducationalPlataform.Data;
 using EducationalPlataform.DTOs;
 using EducationalPlataform.Entities;
+using EducationalPlataform.Models.Enums;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using EducationalPlataform.Models.Enums;
+using Microsoft.EntityFrameworkCore;
 
 
 [Authorize]
@@ -30,21 +31,32 @@ public class UsersController : ControllerBase
     }
 
     [HttpGet("{id}")]
-    public ActionResult<UserReadDto> GetById(int id)
+    public async Task<ActionResult<UserReadDto>> GetById(int id)
     {
-        var user = _context.Users.Find(id);
+        var user = await _context.Users
+            .Include(u => u.CourseEnrollments)
+                .ThenInclude(e => e.Course)
+                    .ThenInclude(c => c.Teacher)
+            .FirstOrDefaultAsync(u => u.Id == id);
+
         if (user == null)
-            throw new ArgumentException($"Course with id {id} not found");
+            return NotFound($"Usuário com id {id} não encontrado");
+
         var userDto = _mapper.Map<UserReadDto>(user);
         return Ok(userDto);
     }
 
+
+
     [HttpGet("students")]
-    public ActionResult<IEnumerable<UserReadDto>> GetStudents()
+    public async Task<ActionResult<IEnumerable<UserReadDto>>> GetStudents()
     {
-        var students = _context.Users
+        var students = await _context.Users
             .Where(u => u.Profile == UserProfile.Student)
-            .ToList();
+            .Include(u => u.CourseEnrollments)
+                .ThenInclude(e => e.Course)
+                    .ThenInclude(c => c.Teacher)
+            .ToListAsync();
 
         var studentsDto = _mapper.Map<List<UserReadDto>>(students);
         return Ok(studentsDto);
@@ -98,18 +110,50 @@ public class UsersController : ControllerBase
         return CreatedAtAction(nameof(GetById), new { id = student.Id }, studentDto);
     }
 
-
     [HttpPut("{id}")]
-    public ActionResult Update(int id, [FromBody] UserUpdateDto dto)
+    public async Task<IActionResult> Update(int id, [FromBody] StudentUpdateDto dto)
     {
-        var user = _context.Users.Find(id);
-        if (user == null)
-            throw new ArgumentException($"Course with id {id} not found");
+        var user = await _context.Users
+            .Include(u => u.CourseEnrollments)
+                .ThenInclude(e => e.Course)
+                    .ThenInclude(c => c.Teacher)
+            .FirstOrDefaultAsync(u => u.Id == id);
 
-        _mapper.Map(dto, user);
-        _context.SaveChanges();
+
+        if (user == null)
+            return NotFound();
+
+        // Atualiza dados básicos
+        user.UserName = dto.UserName;
+        user.UserEmail = dto.UserEmail;
+        user.PhoneNumber = dto.PhoneNumber;
+        user.BirthDate = dto.BirthDate;
+        user.Profile = UserProfile.Student;
+
+        // Mantém ou atualiza cursos
+        foreach (var enrollmentDto in dto.CourseEnrollments)
+        {
+            var enrollment = user.CourseEnrollments
+                .FirstOrDefault(e => e.CourseId == enrollmentDto.CourseId);
+
+            if (enrollment != null)
+                enrollment.Status = enrollmentDto.Status;
+            else
+                user.CourseEnrollments.Add(new CourseEnrollment
+                {
+                    CourseId = enrollmentDto.CourseId,
+                    Status = enrollmentDto.Status,
+                    UserId = user.Id
+                });
+        }
+
+        await _context.SaveChangesAsync();
         return NoContent();
     }
+
+
+
+
 
     [HttpDelete("{id}")]
     public ActionResult Delete(int id)

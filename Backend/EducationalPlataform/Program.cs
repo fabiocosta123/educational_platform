@@ -9,21 +9,25 @@ using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
 using System.Security.Claims;
 using System.Text;
+using System.Text.Json; 
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Controllers
-builder.Services.AddControllers();
+// Controllers com JSON camelCase
+builder.Services.AddControllers()
+    .AddJsonOptions(options =>
+    {
+        options.JsonSerializerOptions.PropertyNamingPolicy = JsonNamingPolicy.CamelCase;
+    });
 
 // Password hashing
 builder.Services.AddScoped<IPasswordHasher<User>, PasswordHasher<User>>();
 
-// Bind JWT settings (optional classless)
+// JWT config
 var jwtKey = builder.Configuration["Jwt:Key"];
 var jwtIssuer = builder.Configuration["Jwt:Issuer"];
 var jwtAudience = builder.Configuration["Jwt:Audience"];
 
-// Security note: in production store Jwt:Key in environment variable or secret store
 if (string.IsNullOrWhiteSpace(jwtKey))
 {
     throw new InvalidOperationException("Jwt:Key is not configured. Set it in appsettings or environment variables.");
@@ -31,7 +35,6 @@ if (string.IsNullOrWhiteSpace(jwtKey))
 
 var signingKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtKey));
 
-// Authentication / JWT
 builder.Services.AddAuthentication(options =>
 {
     options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
@@ -39,7 +42,6 @@ builder.Services.AddAuthentication(options =>
 })
 .AddJwtBearer(options =>
 {
-    // In Development you may allow HTTP metadata; in Production require HTTPS
     options.RequireHttpsMetadata = !builder.Environment.IsDevelopment();
     options.SaveToken = true;
 
@@ -53,23 +55,8 @@ builder.Services.AddAuthentication(options =>
         ValidAudience = jwtAudience,
         ValidateLifetime = true,
         ClockSkew = TimeSpan.FromMinutes(1),
-
         RoleClaimType = ClaimTypes.Role,
         NameClaimType = ClaimTypes.NameIdentifier
-    };
-
-    // Do not log tokens or stack traces in production. Keep events minimal.
-    options.Events = new JwtBearerEvents
-    {
-        OnAuthenticationFailed = context =>
-        {
-            // Minimal logging for development only
-            if (builder.Environment.IsDevelopment())
-            {
-                Console.WriteLine("Authentication failed: " + context.Exception?.Message);
-            }
-            return Task.CompletedTask;
-        }
     };
 });
 
@@ -80,7 +67,7 @@ builder.Services.AddScoped<IUserService, UserService>();
 builder.Services.AddScoped<IJwtService, JwtService>();
 builder.Services.AddScoped<IEmailService, EmailService>();
 
-// CORS (consider moving origins to configuration)
+// CORS
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowFrontend", policy =>
@@ -95,13 +82,12 @@ builder.Services.AddCors(options =>
 builder.Services.AddAutoMapper(typeof(Program).Assembly);
 builder.Services.AddAutoMapper(AppDomain.CurrentDomain.GetAssemblies());
 
-
 // DbContext
 builder.Services.AddDbContext<EducationalPlataformContext>(options =>
     options.UseSqlServer(builder.Configuration.GetConnectionString("EducationalPlataformContext")
         ?? throw new InvalidOperationException("Connection string 'EducationalPlataformContext' not found.")));
 
-// Swagger with Bearer auth
+// Swagger
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(c =>
 {
@@ -126,7 +112,7 @@ builder.Services.AddSwaggerGen(c =>
 
 var app = builder.Build();
 
-// Apply migrations at startup (keep for dev; consider manual migrations in production)
+// Migrations
 using (var scope = app.Services.CreateScope())
 {
     var db = scope.ServiceProvider.GetRequiredService<EducationalPlataformContext>();
@@ -141,7 +127,6 @@ if (app.Environment.IsDevelopment())
 }
 else
 {
-    // In production you may still expose swagger to authorized users only
     app.UseSwagger();
     app.UseSwaggerUI(c => c.SwaggerEndpoint("/swagger/v1/swagger.json", "EducationalPlataform API V1"));
 }

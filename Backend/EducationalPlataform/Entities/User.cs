@@ -26,6 +26,8 @@ namespace EducationalPlataform.Entities
 
         public string Role { get; set; }
 
+        public string? PhoneNumber { get; set; }
+
         // relacionships
         public ICollection<Course> CoursesCreated { get; set; } = new List<Course>();
         public ICollection<CourseEnrollment> CoursesEnrolled { get; set; } = new List<CourseEnrollment>();
@@ -33,6 +35,8 @@ namespace EducationalPlataform.Entities
         public ICollection<Course> Courses { get; set; } = new List<Course>();
 
         public ICollection<Lesson> LessonsTaught { get; set; } = new List<Lesson>();
+
+        public ICollection<CourseEnrollment> CourseEnrollments { get; set; } = new List<CourseEnrollment>();
 
 
         // constructor

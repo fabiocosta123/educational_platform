@@ -10,6 +10,7 @@ public class UserCreateDto
     [Required(ErrorMessage = "O email é obrigatório.")]
     [EmailAddress(ErrorMessage = "O email deve ser válido.")]
     public string UserEmail { get; set; } = string.Empty;
+    public string PhoneNumber { get; set; }
 
     [Required(ErrorMessage = "A senha é obrigatória.")]
     public string Password { get; set; } = string.Empty;

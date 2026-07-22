@@ -35,14 +35,19 @@ namespace EducationalPlataform.Profiles
                 .ForMember(dest => dest.CPF, opt => opt.MapFrom(src => src.CPF ?? string.Empty))
                 .ForMember(dest => dest.Role, opt => opt.MapFrom(src => src.Role ?? string.Empty));
 
-            // CourseEnrollment → CourseEnrollmentReadDto
             CreateMap<CourseEnrollment, CourseEnrollmentReadDto>()
                 .ForMember(dest => dest.UserName,
                     opt => opt.MapFrom(src => src.User != null ? src.User.UserName ?? string.Empty : string.Empty))
                 .ForMember(dest => dest.CourseTitle,
                     opt => opt.MapFrom(src => src.Course != null ? src.Course.Title ?? string.Empty : string.Empty))
+                .ForMember(dest => dest.TeacherName,
+                    opt => opt.MapFrom(src =>
+                    src.Course != null && src.Course.Teacher != null
+                    ? src.Course.Teacher.UserName ?? string.Empty
+                    : string.Empty))
                 .ForMember(dest => dest.Status,
                     opt => opt.MapFrom(src => src.Status ?? "Ativo"));
+
         }
     }
 }
