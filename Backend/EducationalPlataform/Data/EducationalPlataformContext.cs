@@ -13,6 +13,7 @@ namespace EducationalPlataform.Data
         public DbSet<Course> Courses { get; set; }
         public DbSet<Lesson> Lessons { get; set; }
         public DbSet<CourseEnrollment> CourseEnrollments { get; set; }
+        public DbSet<Payment> Payments { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -64,6 +65,20 @@ namespace EducationalPlataform.Data
                 .HasOne(l => l.Course)
                 .WithMany(c => c.Lessons)
                 .HasForeignKey(l => l.CourseId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            // Relationship Payment -> User
+            modelBuilder.Entity<Payment>()
+                .HasOne(p => p.User)
+                .WithMany(u => u.Payments)
+                .HasForeignKey(p => p.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            // Relationship Payment → Course
+            modelBuilder.Entity<Payment>()
+                .HasOne(p => p.Course)
+                .WithMany(c => c.Payments) 
+                .HasForeignKey(p => p.CourseId)
                 .OnDelete(DeleteBehavior.Cascade);
         }
     }

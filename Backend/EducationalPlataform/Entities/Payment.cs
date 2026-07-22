@@ -1,0 +1,17 @@
+﻿namespace EducationalPlataform.Entities
+{
+    public class Payment
+    {
+        public int Id { get; set; }
+        public int UserId { get; set; }
+        public int CourseId { get; set; }
+        public decimal Amount { get; set; }
+        public string Status { get; set; } = "Pendente"; 
+        public DateTime CreatedAt { get; set; } = DateTime.Now;
+        public DateTime? PaidAt { get; set; }
+
+        //Relacionamentos
+        public User User { get; set; }
+        public Course Course { get; set; }
+    }
+}
