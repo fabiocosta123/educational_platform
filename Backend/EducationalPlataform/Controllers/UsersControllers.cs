@@ -62,6 +62,26 @@ public class UsersController : ControllerBase
         return Ok(studentsDto);
     }
 
+    [HttpGet("byName")]
+    public async Task<ActionResult<UserReadDto>> GetByName([FromQuery] string userName)
+    {
+        if (string.IsNullOrWhiteSpace(userName))
+            return BadRequest("Nome do usuário é obrigatório.");
+
+        var user = await _context.Users
+            .Include(u => u.CourseEnrollments)
+                .ThenInclude(e => e.Course)
+                    .ThenInclude(c => c.Teacher)
+            .FirstOrDefaultAsync(u => u.UserName == userName);
+
+        if (user == null)
+            return NotFound($"Usuário com nome {userName} não encontrado");
+
+        var userDto = _mapper.Map<UserReadDto>(user);
+        return Ok(userDto);
+    }
+
+
 
     [HttpPost]
     public ActionResult<UserReadDto> Create([FromBody] UserCreateDto dto)
@@ -172,11 +192,22 @@ public class UsersController : ControllerBase
         return Ok(userDto);
     }
 
+    
+    [HttpPut("pix/pay/{paymentId}")]
+    public async Task<IActionResult> MarkAsPaid(int paymentId)
+    {
+        var payment = await _context.Payments.FindAsync(paymentId);
+        if (payment == null)
+            return NotFound("Pagamento não encontrado");
 
+        payment.Status = "PAID";
+        payment.PaidAt = DateTime.UtcNow;
 
+        await _context.SaveChangesAsync();
+        return Ok();
+    }
 
-
-
+    
     [HttpDelete("{id}")]
     public ActionResult Delete(int id)
     {
