@@ -9,6 +9,8 @@
         public string Status { get; set; } = "Pendente"; 
         public DateTime CreatedAt { get; set; } = DateTime.Now;
         public DateTime? PaidAt { get; set; }
+        public DateTime? DueDate { get; set; }
+
 
         //Relacionamentos
         public User User { get; set; }
