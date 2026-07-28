@@ -1,4 +1,6 @@
-﻿namespace EducationalPlataform.Entities
+﻿using EducationalPlataform.Models.Enums;
+
+namespace EducationalPlataform.Entities
 {
     public class Payment
     {
@@ -6,7 +8,7 @@
         public int UserId { get; set; }
         public int CourseId { get; set; }
         public decimal Amount { get; set; }
-        public string Status { get; set; } = "Pendente"; 
+        public PaymentStatus Status { get; set; } = PaymentStatus.Pending; 
         public DateTime CreatedAt { get; set; } = DateTime.Now;
         public DateTime? PaidAt { get; set; }
         public DateTime? DueDate { get; set; }

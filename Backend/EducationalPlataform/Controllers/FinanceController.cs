@@ -1,6 +1,7 @@
 ﻿using EducationalPlataform.Data;
 using EducationalPlataform.DTOs;
 using EducationalPlataform.Entities;
+using EducationalPlataform.Models.Enums;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -24,7 +25,9 @@ namespace EducationalPlataform.Controllers
             _context = context;
         }
 
-        private async Task RegisterAudit(int paymentId, string action, string details)
+
+        #region Metodos Privados
+        private void RegisterAudit(int paymentId, string action, string details)
         {
             var audit = new PaymentAudit
             {
@@ -33,9 +36,90 @@ namespace EducationalPlataform.Controllers
                 Details = details
             };
 
-            _context.PaymentAudits.Add(audit);
-            await _context.SaveChangesAsync();
+            _context.PaymentAudits.Add(audit);            
         }
+
+
+
+        private async Task<FinanceSummaryDto> BuildFinanceSummary(IQueryable<Payment> query, int activeStudents)
+        {
+
+            var now = DateTime.Now;
+
+            var totalPayments = await query.CountAsync();
+
+            var totalReceived = await query
+                .Where(p => p.Status == PaymentStatus.Paid)
+                .SumAsync(p => p.Amount);
+
+            var totalPending = await query
+                .Where(p => p.Status == PaymentStatus.Pending)
+                .SumAsync(p => p.Amount);
+
+            var monthlyRevenue = await query
+                .Where(p =>
+                    p.Status == PaymentStatus.Paid &&
+                    p.PaidAt.HasValue &&
+                    p.PaidAt.Value.Month == now.Month &&
+                    p.PaidAt.Value.Year == now.Year)
+                .SumAsync(p => p.Amount);
+
+            var paid = await query.CountAsync(p => p.Status == PaymentStatus.Paid);
+
+            var pending = totalPayments - paid;
+
+            return new FinanceSummaryDto
+            {
+                TotalReceived = totalReceived,
+                TotalPending = totalPending,
+                TotalPayments = totalPayments,
+                Paid = paid,
+                Pending = pending,
+                DefaultRate = totalPayments == 0
+                    ? 0
+                    : (decimal)pending / totalPayments * 100,
+                ActiveStudents = activeStudents,
+                MonthlyRevenue = monthlyRevenue,
+                Message = totalPayments == 0
+                    ? "Nenhum dado financeiro encontrado."
+                    : null
+            };
+        }
+
+
+        private IQueryable<dynamic> BuildPaymentHistory(IQueryable<Payment> query)
+        {
+            return query
+                .Include(p => p.User)
+                .Include(p => p.Course)
+                .ThenInclude(c => c.Teacher)
+                .OrderBy(p => p.DueDate)
+                .Select(p => new
+                {
+                    p.Id,
+                    p.Amount,
+                    p.Status,
+                    p.DueDate,
+                    p.PaidAt,
+
+                    Course = new
+                    {
+                        Title = p.Course.Title,
+                        Teacher = p.Course.Teacher != null
+                            ? p.Course.Teacher.UserName
+                            : null
+                    },
+
+                    Student = new
+                    {
+                        UserName = p.User.UserName
+                    }
+                });
+        }
+
+        #endregion
+
+
 
         // Lista todos os pagamentos
         [HttpGet("pix")]
@@ -56,8 +140,11 @@ namespace EducationalPlataform.Controllers
             if (courseId.HasValue)
                 query = query.Where(p => p.CourseId == courseId.Value);
 
-            if (!string.IsNullOrEmpty(status))
-                query = query.Where(p => p.Status == status);
+            if (!string.IsNullOrWhiteSpace(status) &&
+                Enum.TryParse<PaymentStatus>(status, true, out var paymentStatus))
+            {
+                query = query.Where(p => p.Status == paymentStatus);
+            }
 
             if (!string.IsNullOrEmpty(userName))
                 query = query.Where(p => p.User.UserName.Contains(userName));
@@ -66,8 +153,10 @@ namespace EducationalPlataform.Controllers
         }
 
         // Resumo financeiro geral
+        #region Consultas
+
         [HttpGet("pix/history")]
-        public async Task<ActionResult<FinanceSummaryDto>> GetFinancialHistory()
+        public async Task<IActionResult> GetFinancialHistory()
         {
             var activeStudents = await _context.CourseEnrollments
                 .Where(e => e.Status == "Active")
@@ -75,90 +164,46 @@ namespace EducationalPlataform.Controllers
                 .Distinct()
                 .CountAsync();
 
-            var totalPayments = await _context.Payments.CountAsync();
+            var query = _context.Payments.AsQueryable();
 
-            if (totalPayments == 0)
+            var summary = await BuildFinanceSummary(query, activeStudents);
+
+            var payments = await BuildPaymentHistory(query).ToListAsync();
+
+            return Ok(new
             {
-                return Ok(new FinanceSummaryDto
-                {
-                    TotalReceived = 0,
-                    TotalPending = 0,
-                    TotalPayments = 0,
-                    Paid = 0,
-                    Pending = 0,
-                    DefaultRate = 0,
-                    ActiveStudents = activeStudents,
-                    MonthlyRevenue = 0,
-                    Message = "Nenhum dado financeiro encontrado."
-                });
-            }
-
-            var totalReceived = await _context.Payments
-                .Where(p => p.Status == "Paid")
-                .SumAsync(p => p.Amount);
-
-            var totalPending = await _context.Payments
-                .Where(p => p.Status == "Pending")
-                .SumAsync(p => p.Amount);
-
-            var monthlyRevenue = await _context.Payments
-                .Where(p => p.Status == "Paid" && p.PaidAt.HasValue && p.PaidAt.Value.Month == DateTime.Now.Month)
-                .SumAsync(p => p.Amount);
-
-            var paid = await _context.Payments.Where(p => p.Status == "Paid").CountAsync();
-            var pending = totalPayments - paid;
-            var defaultRate = totalPayments > 0 ? (decimal)pending / totalPayments * 100 : 0;
-
-            return Ok(new FinanceSummaryDto
-            {
-                TotalReceived = totalReceived,
-                TotalPending = totalPending,
-                TotalPayments = totalPayments,
-                Paid = paid,
-                Pending = pending,
-                DefaultRate = defaultRate,
-                ActiveStudents = activeStudents,
-                MonthlyRevenue = monthlyRevenue
+                summary,
+                payments
             });
         }
 
-        // Resumo financeiro individual
+
         [HttpGet("pix/student")]
-        public async Task<ActionResult<FinanceSummaryDto>> GetStudentFinancialHistory([FromQuery] string userName)
+        public async Task<IActionResult> GetStudentFinancialHistory([FromQuery] string userName)
         {
-            if (string.IsNullOrEmpty(userName))
+            if (string.IsNullOrWhiteSpace(userName))
                 return BadRequest("userName is required");
 
             var query = _context.Payments
-                .Include(p => p.User)
                 .Where(p => p.User.UserName.Contains(userName));
 
             if (!await query.AnyAsync())
                 return NotFound($"No payments found for student {userName}");
 
-            var totalReceived = await query.Where(p => p.Status == "Paid").SumAsync(p => p.Amount);
-            var totalPending = await query.Where(p => p.Status == "Pending").SumAsync(p => p.Amount);
-            var totalPayments = await query.CountAsync();
-            var paid = await query.Where(p => p.Status == "Paid").CountAsync();
-            var pending = totalPayments - paid;
-            var defaultRate = totalPayments > 0 ? (decimal)pending / totalPayments * 100 : 0;
+            var summary = await BuildFinanceSummary(query, 1);
 
-            var monthlyRevenue = await query
-                .Where(p => p.Status == "Paid" && p.PaidAt.HasValue && p.PaidAt.Value.Month == DateTime.Now.Month)
-                .SumAsync(p => p.Amount);
+            var payments = await BuildPaymentHistory(query).ToListAsync();
 
-            return Ok(new FinanceSummaryDto
+            return Ok(new
             {
-                TotalReceived = totalReceived,
-                TotalPending = totalPending,
-                TotalPayments = totalPayments,
-                Paid = paid,
-                Pending = pending,
-                DefaultRate = defaultRate,
-                ActiveStudents = 1,
-                MonthlyRevenue = monthlyRevenue
+                summary,
+                payments
             });
         }
+        #endregion
+
+
+
 
         // Auditoria de pagamento
         [HttpGet("pix/audit/{paymentId}")]
@@ -194,21 +239,21 @@ namespace EducationalPlataform.Controllers
                 UserId = user.Id,
                 CourseId = course.Id,
                 Amount = amount,
-                Status = "Pending",
-                DueDate = DateTime.Now
+                Status = PaymentStatus.Pending,
+                DueDate = dto.DueDate
             };
 
-            _context.Payments.Add(payment);
-            await _context.SaveChangesAsync();
+            _context.Payments.Add(payment);          
 
-            await RegisterAudit(payment.Id, "Created", $"PIX charge generated for {dto.UserName}, Curso {dto.CourseTitle}, Valor {dto.Amount}");
+            RegisterAudit(payment.Id, "Created", $"PIX charge generated for {dto.UserName}, Curso {dto.CourseTitle}, Valor {dto.Amount}");
+            await _context.SaveChangesAsync();
 
             var baseUrl = $"{Request.Scheme}://{Request.Host}/api/finance";
             var response = new PixPaymentDto.PixPaymentResponseDto
             {
                 QrCodeBase64 = null, 
                 CopiaCola = $"00020126580014BR.GOV.BCB.PIX0136{payment.Id}520400005303986540{payment.Amount}5802BR5925{user.UserName}",
-                Status = payment.Status,
+                Status = payment.Status.ToString(),
                 DownloadUrl = $"{baseUrl}/pix/download/{payment.Id}",
                 DownloadPdfUrl = $"{baseUrl}/pix/download/pdf/{payment.Id}"
 
@@ -229,7 +274,9 @@ namespace EducationalPlataform.Controllers
             var payment = await _context.Payments.FindAsync(paymentId);
             if (payment == null) return NotFound();
 
-            payment.Status = "Paid";
+            if (payment.Status == PaymentStatus.Paid)
+                return BadRequest("Pagamento já confirmado.");
+
             payment.PaidAt = DateTime.Now;
             await _context.SaveChangesAsync();
 
@@ -242,7 +289,7 @@ namespace EducationalPlataform.Controllers
             };
             _context.CourseEnrollments.Add(enrollment);
 
-            await RegisterAudit(payment.Id, "Confirmed", $"Payment {payment.Id} confirmed manually");
+            RegisterAudit(payment.Id, "Confirmed", $"Payment {payment.Id} confirmed manually");
             await _context.SaveChangesAsync();
 
             return Ok("Payment confirmed and course unlocked.");
@@ -256,7 +303,7 @@ namespace EducationalPlataform.Controllers
             var payment = await _context.Payments.FindAsync(dto.PaymentId);
             if (payment == null) return NotFound();
 
-            payment.Status = "Paid";
+            payment.Status = PaymentStatus.Paid;
             payment.PaidAt = DateTime.Now;
             await _context.SaveChangesAsync();
 
@@ -279,7 +326,7 @@ namespace EducationalPlataform.Controllers
                 enrollment.Status = "Active";
             }
 
-            await RegisterAudit(payment.Id, "WebhookReceived", $"Payment confirmed by PSP. TransactionId: {dto.TransactionId}");
+            RegisterAudit(payment.Id, "WebhookReceived", $"Payment confirmed by PSP. TransactionId: {dto.TransactionId}");
             await _context.SaveChangesAsync();
 
             return Ok(new { message = "Payment confirmed via webhook and course unlocked." });
