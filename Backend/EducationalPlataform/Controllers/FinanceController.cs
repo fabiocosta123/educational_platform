@@ -221,49 +221,43 @@ namespace EducationalPlataform.Controllers
         [HttpPost("pix")]
         public async Task<ActionResult<PixPaymentDto.PixPaymentResponseDto>> GeneratePix([FromBody] PixPaymentDto.PixPaymentRequestDto dto)
         {
-            // Buscar usuário pelo nome
             var user = await _context.Users.FirstOrDefaultAsync(u => u.UserName == dto.UserName);
             if (user == null)
-                return NotFound(new { message = $"O aluno '{dto.UserName}' não foi encontrado. Verifique o nome informado." });
+                return NotFound(new { message = $"O aluno '{dto.UserName}' não foi encontrado." });
 
-            // Buscar curso pelo título
             var course = await _context.Courses.FirstOrDefaultAsync(c => c.Title == dto.CourseTitle);
             if (course == null)
-                return NotFound(new { message = $"O curso '{dto.CourseTitle}' não existe. Confira o título informado." });
-
-            if (!decimal.TryParse(dto.Amount.ToString(), NumberStyles.Any, new CultureInfo("pt-BR"), out var amount))
-                return BadRequest(new { message = "Valor inválido. Use o formato 99,99 ou 99.99." });
+                return NotFound(new { message = $"O curso '{dto.CourseTitle}' não existe." });
 
             var payment = new Payment
             {
                 UserId = user.Id,
                 CourseId = course.Id,
-                Amount = amount,
+                Amount = dto.Amount,
                 Status = PaymentStatus.Pending,
                 DueDate = dto.DueDate
             };
 
-            _context.Payments.Add(payment);          
+            _context.Payments.Add(payment);
+            await _context.SaveChangesAsync(); // salva primeiro para gerar o Id
 
             RegisterAudit(payment.Id, "Created", $"PIX charge generated for {dto.UserName}, Curso {dto.CourseTitle}, Valor {dto.Amount}");
-            await _context.SaveChangesAsync();
+            await _context.SaveChangesAsync(); // salva auditoria
 
             var baseUrl = $"{Request.Scheme}://{Request.Host}/api/finance";
             var response = new PixPaymentDto.PixPaymentResponseDto
             {
-                QrCodeBase64 = null, 
+                QrCodeBase64 = null,
                 CopiaCola = $"00020126580014BR.GOV.BCB.PIX0136{payment.Id}520400005303986540{payment.Amount}5802BR5925{user.UserName}",
                 Status = payment.Status.ToString(),
                 DownloadUrl = $"{baseUrl}/pix/download/{payment.Id}",
                 DownloadPdfUrl = $"{baseUrl}/pix/download/pdf/{payment.Id}"
-
             };
-
-            
-
 
             return Ok(response);
         }
+
+
 
 
 
@@ -271,48 +265,21 @@ namespace EducationalPlataform.Controllers
         [HttpPost("pix/confirm/{paymentId}")]
         public async Task<IActionResult> ConfirmPixPayment(int paymentId)
         {
-            var payment = await _context.Payments.FindAsync(paymentId);
-            if (payment == null) return NotFound();
-
-            if (payment.Status == PaymentStatus.Paid)
-                return BadRequest("Pagamento já confirmado.");
-
-            payment.PaidAt = DateTime.Now;
-            await _context.SaveChangesAsync();
-
-            var enrollment = new CourseEnrollment
+            await using var transaction = await _context.Database.BeginTransactionAsync();
+            try
             {
-                UserId = payment.UserId,
-                CourseId = payment.CourseId,
-                Status = "Active",
-                ProgressPercentage = 0
-            };
-            _context.CourseEnrollments.Add(enrollment);
+                var payment = await _context.Payments.FindAsync(paymentId);
+                if (payment == null) return NotFound();
 
-            RegisterAudit(payment.Id, "Confirmed", $"Payment {payment.Id} confirmed manually");
-            await _context.SaveChangesAsync();
+                if (payment.Status == PaymentStatus.Paid)
+                    return BadRequest("Pagamento já confirmado.");
 
-            return Ok("Payment confirmed and course unlocked.");
-        }
+                // Atualiza status e data
+                payment.Status = PaymentStatus.Paid;
+                payment.PaidAt = DateTime.Now;
 
-        // Webhook PSP
-        [AllowAnonymous]
-        [HttpPost("pix/webhook")]
-        public async Task<IActionResult> PixWebhook([FromBody] PixWebhookDto dto)
-        {
-            var payment = await _context.Payments.FindAsync(dto.PaymentId);
-            if (payment == null) return NotFound();
-
-            payment.Status = PaymentStatus.Paid;
-            payment.PaidAt = DateTime.Now;
-            await _context.SaveChangesAsync();
-
-            var enrollment = await _context.CourseEnrollments
-                .FirstOrDefaultAsync(e => e.UserId == payment.UserId && e.CourseId == payment.CourseId);
-
-            if (enrollment == null)
-            {
-                enrollment = new CourseEnrollment
+                // Cria matrícula
+                var enrollment = new CourseEnrollment
                 {
                     UserId = payment.UserId,
                     CourseId = payment.CourseId,
@@ -320,17 +287,82 @@ namespace EducationalPlataform.Controllers
                     ProgressPercentage = 0
                 };
                 _context.CourseEnrollments.Add(enrollment);
+
+                // Registra auditoria
+                RegisterAudit(payment.Id, "Confirmed", $"Payment {payment.Id} confirmed manually");
+
+                // Salva tudo de uma vez
+                await _context.SaveChangesAsync();
+
+                // Confirma transação
+                await transaction.CommitAsync();
+
+                return Ok("Payment confirmed and course unlocked.");
             }
-            else
+            catch (Exception ex)
             {
-                enrollment.Status = "Active";
+                // Reverte caso algo dê errado
+                await transaction.RollbackAsync();
+                return StatusCode(500, $"Erro ao confirmar pagamento: {ex.Message}");
             }
-
-            RegisterAudit(payment.Id, "WebhookReceived", $"Payment confirmed by PSP. TransactionId: {dto.TransactionId}");
-            await _context.SaveChangesAsync();
-
-            return Ok(new { message = "Payment confirmed via webhook and course unlocked." });
         }
+
+
+
+        // Webhook PSP
+        [AllowAnonymous]
+        [HttpPost("pix/webhook")]
+        public async Task<IActionResult> PixWebhook([FromBody] PixWebhookDto dto)
+        {
+            await using var transaction = await _context.Database.BeginTransactionAsync();
+            try
+            {
+                var payment = await _context.Payments.FindAsync(dto.PaymentId);
+                if (payment == null) return NotFound();
+
+                // Atualiza status e data
+                payment.Status = PaymentStatus.Paid;
+                payment.PaidAt = DateTime.Now;
+
+                // Verifica matrícula
+                var enrollment = await _context.CourseEnrollments
+                    .FirstOrDefaultAsync(e => e.UserId == payment.UserId && e.CourseId == payment.CourseId);
+
+                if (enrollment == null)
+                {
+                    enrollment = new CourseEnrollment
+                    {
+                        UserId = payment.UserId,
+                        CourseId = payment.CourseId,
+                        Status = "Active",
+                        ProgressPercentage = 0
+                    };
+                    _context.CourseEnrollments.Add(enrollment);
+                }
+                else
+                {
+                    enrollment.Status = "Active";
+                }
+
+                // Registra auditoria
+                RegisterAudit(payment.Id, "WebhookReceived", $"Payment confirmed by PSP. TransactionId: {dto.TransactionId}");
+
+                // Salva tudo de uma vez
+                await _context.SaveChangesAsync();
+
+                // Confirma transação
+                await transaction.CommitAsync();
+
+                return Ok(new { message = "Payment confirmed via webhook and course unlocked." });
+            }
+            catch (Exception ex)
+            {
+                // Reverte tudo se der erro
+                await transaction.RollbackAsync();
+                return StatusCode(500, $"Erro ao processar webhook: {ex.Message}");
+            }
+        }
+
 
         // Download QR Code em PNG
         [HttpGet("pix/download/{paymentId}")]

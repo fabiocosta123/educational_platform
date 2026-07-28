@@ -200,7 +200,7 @@ public class UsersController : ControllerBase
         if (payment == null)
             return NotFound("Pagamento não encontrado");
 
-        payment.Status = "PAID";
+        payment.Status = PaymentStatus.Paid;
         payment.PaidAt = DateTime.UtcNow;
 
         await _context.SaveChangesAsync();
