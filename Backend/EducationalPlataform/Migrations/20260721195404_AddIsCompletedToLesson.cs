@@ -5,27 +5,25 @@
 namespace EducationalPlataform.Migrations
 {
     /// <inheritdoc />
-    public partial class AddTeacherIdColumnToLessons : Migration
+    public partial class AddIsCompletedToLesson : Migration
     {
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
-            migrationBuilder.AddColumn<int>(
-                name: "TeacherId",
+            migrationBuilder.AddColumn<bool>(
+                name: "IsCompleted",
                 table: "Lessons",
-                type: "int",
+                type: "bit",
                 nullable: false,
-                defaultValue: 0);
+                defaultValue: false);
         }
-
 
         /// <inheritdoc />
         protected override void Down(MigrationBuilder migrationBuilder)
         {
             migrationBuilder.DropColumn(
-                name: "TeacherId",
+                name: "IsCompleted",
                 table: "Lessons");
         }
-
     }
 }

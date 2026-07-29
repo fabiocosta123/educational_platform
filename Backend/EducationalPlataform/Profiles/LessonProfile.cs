@@ -2,7 +2,7 @@
 using EducationalPlataform.DTOs;
 using EducationalPlataform.Entities;
 
-namespace EducationalPlataform.Profiles
+namespace EducationalPlataform.Profiles 
 {
     public class LessonProfile : Profile
     {

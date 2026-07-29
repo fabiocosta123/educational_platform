@@ -6,6 +6,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Authorization;
 using System.Security.Claims;
 using Microsoft.EntityFrameworkCore;
+using EducationalPlataform.Models.Enums;
 
 namespace EducationalPlataform.Controllers
 {
@@ -17,31 +18,55 @@ namespace EducationalPlataform.Controllers
         private readonly EducationalPlataformContext _context;
         private readonly IMapper _mapper;
 
-        // constructor to inject the database context
+       
         public CoursesController(EducationalPlataformContext context, IMapper mapper)
         {
             _context = context;
             _mapper = mapper;
         }
 
+       
+        
+
         [AllowAnonymous]
         [HttpGet]
-        public ActionResult<IEnumerable<CourseReadDto>> GetAll()
+        public async Task<ActionResult<IEnumerable<CourseReadDto>>> GetAll()
         {
-            var courses = _context.Courses.ToList();
-            var coursesDto = _mapper.Map<List<CourseReadDto>>(courses);
-            return Ok(coursesDto);
+            try
+            {
+                var courses = await _context.Courses
+                    .Include(c => c.Teacher)
+                    .Include(c => c.Lessons)
+                    .Include(c => c.EnrolledUsers)
+                        .ThenInclude(e => e.User)                    
+                    .ToListAsync();
+
+                var coursesDto = _mapper.Map<List<CourseReadDto>>(courses);
+                return Ok(coursesDto);
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, ex.ToString());
+            }
+
 
         }
 
 
 
         [HttpGet("{id}")]
-        public ActionResult<CourseReadDto> GetById(int id)
+        public async Task<ActionResult<CourseReadDto>> GetById(int id)
         {
-            var course = _context.Courses.Find(id);
+            var course = await _context.Courses
+                .Include(c => c.Teacher)
+                .Include(c => c.Lessons)
+                .Include(c => c.EnrolledUsers)
+                    .ThenInclude(e => e.User)                
+                .FirstOrDefaultAsync(c => c.Id == id);
+
+
             if (course == null)
-                throw new ArgumentException($"Course with id {id} not found");
+                return NotFound();
 
             var courseDto = _mapper.Map<CourseReadDto>(course);
             return Ok(courseDto);
@@ -57,30 +82,79 @@ namespace EducationalPlataform.Controllers
         [HttpPost]
         public ActionResult<CourseReadDto> Create([FromBody] CourseCreateDto dto)
         {
+            
             var course = _mapper.Map<Course>(dto);
+
+            
+            var teacher = _context.Users
+                .FirstOrDefault(u => u.Id == dto.TeacherId && u.Profile == UserProfile.Teacher);
+
+            if (teacher == null)
+                return BadRequest("Professor não encontrado.");
+
+            course.Teacher = teacher;
+            course.TeacherId = teacher.Id;
+
+            teacher.Courses.Add(course);
+
+
+            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (int.TryParse(userId, out var creatorId))
+                course.CreatorId = creatorId;
 
             _context.Courses.Add(course);
             _context.SaveChanges();
 
             var courseReadDto = _mapper.Map<CourseReadDto>(course);
-
             return CreatedAtAction(nameof(GetById), new { id = course.Id }, courseReadDto);
         }
-        
 
+
+
+       
         [HttpPut("{id}")]
         public ActionResult Update(int id, [FromBody] CourseUpdateDto dto)
         {
-            var course = _context.Courses.Find(id);
-            if (course == null)
-                throw new ArgumentException($"Course with id {id} not found");
+            var course = _context.Courses
+                .Include(c => c.Teacher)
+                .FirstOrDefault(c => c.Id == id);
 
+            if (course == null) return NotFound();
+
+            
+            var oldTeacher = course.Teacher;
+
+            
+            var newTeacher = _context.Users
+                .Include(t => t.Courses)
+                .FirstOrDefault(u => u.Id == dto.TeacherId && u.Profile == UserProfile.Teacher);
+
+            if (newTeacher == null)
+                return BadRequest("Professor não encontrado.");
+
+            // atualiza dados do curso
             course.Title = dto.Title;
             course.Description = dto.Description;
+            course.TeacherId = dto.TeacherId;
+            course.Teacher = newTeacher;
+
+            // remove o curso da lista do professor antigo
+            if (oldTeacher != null && oldTeacher.Id != newTeacher.Id)
+            {
+                oldTeacher.Courses.Remove(course);
+            }
+
+            // adiciona o curso à lista do novo professor
+            if (!newTeacher.Courses.Contains(course))
+            {
+                newTeacher.Courses.Add(course);
+            }
 
             _context.SaveChanges();
-            return NoContent();
+
+            return Ok(_mapper.Map<CourseReadDto>(course));
         }
+
 
 
 
@@ -100,6 +174,11 @@ namespace EducationalPlataform.Controllers
         public async Task<ActionResult<IEnumerable<CourseReadDto>>> GetCoursesByTeacher(int teacherId)
         {
             var courses = await _context.Courses
+                .Include(c => c.Teacher)
+                .Include(c => c.Lessons)
+                .Include(c => c.EnrolledUsers)
+                    .ThenInclude(e => e.User)
+                .Include(c => c.Teacher)
                 .Where(c => c.CreatorId == teacherId)
                 .ToListAsync();
 
@@ -117,8 +196,14 @@ namespace EducationalPlataform.Controllers
             if (!int.TryParse(userId, out var id)) return Unauthorized();
 
             var courses = await _context.Courses
+                .Include(c => c.Teacher)
+                .Include(c => c.Lessons)
+                .Include(c => c.EnrolledUsers)
+                    .ThenInclude(e => e.User)
+                .Include(c => c.Teacher)
                 .Where(c => c.CreatorId == id)
                 .ToListAsync();
+
 
             var coursesDto = _mapper.Map<List<CourseReadDto>>(courses);
             return Ok(coursesDto);

@@ -12,8 +12,8 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace EducationalPlataform.Migrations
 {
     [DbContext(typeof(EducationalPlataformContext))]
-    [Migration("20260605182602_MakeCpfNullable")]
-    partial class MakeCpfNullable
+    [Migration("20260721152449_AddUserCourseEnrollments")]
+    partial class AddUserCourseEnrollments
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -39,14 +39,24 @@ namespace EducationalPlataform.Migrations
                     b.Property<string>("Description")
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<int?>("TeacherId")
+                        .HasColumnType("int");
+
                     b.Property<string>("Title")
                         .IsRequired()
                         .HasMaxLength(100)
                         .HasColumnType("nvarchar(100)");
 
+                    b.Property<int?>("UserId")
+                        .HasColumnType("int");
+
                     b.HasKey("Id");
 
                     b.HasIndex("CreatorId");
+
+                    b.HasIndex("TeacherId");
+
+                    b.HasIndex("UserId");
 
                     b.ToTable("Courses");
                 });
@@ -59,11 +69,15 @@ namespace EducationalPlataform.Migrations
                     b.Property<int>("CourseId")
                         .HasColumnType("int");
 
+                    b.Property<int>("CompletedLessons")
+                        .HasColumnType("int");
+
                     b.Property<DateTime?>("EndDate")
                         .HasColumnType("datetime2");
 
                     b.Property<decimal?>("FinalGrade")
-                        .HasColumnType("decimal(18,2)");
+                        .HasPrecision(5, 2)
+                        .HasColumnType("decimal(5,2)");
 
                     b.Property<int>("Id")
                         .HasColumnType("int");
@@ -78,9 +92,17 @@ namespace EducationalPlataform.Migrations
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<int>("TotalLessons")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("UserId1")
+                        .HasColumnType("int");
+
                     b.HasKey("UserId", "CourseId");
 
                     b.HasIndex("CourseId");
+
+                    b.HasIndex("UserId1");
 
                     b.ToTable("CourseEnrollments");
                 });
@@ -102,6 +124,9 @@ namespace EducationalPlataform.Migrations
                     b.Property<DateTime>("Date")
                         .HasColumnType("datetime2");
 
+                    b.Property<int>("TeacherId")
+                        .HasColumnType("int");
+
                     b.Property<string>("Title")
                         .IsRequired()
                         .HasMaxLength(100)
@@ -110,6 +135,8 @@ namespace EducationalPlataform.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("CourseId");
+
+                    b.HasIndex("TeacherId");
 
                     b.ToTable("Lessons");
                 });
@@ -134,6 +161,10 @@ namespace EducationalPlataform.Migrations
                     b.Property<int>("Profile")
                         .HasColumnType("int");
 
+                    b.Property<string>("Role")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
                     b.Property<string>("UserEmail")
                         .HasColumnType("nvarchar(max)");
 
@@ -150,10 +181,21 @@ namespace EducationalPlataform.Migrations
                     b.HasOne("EducationalPlataform.Entities.User", "Creator")
                         .WithMany("CoursesCreated")
                         .HasForeignKey("CreatorId")
-                        .OnDelete(DeleteBehavior.Restrict)
+                        .OnDelete(DeleteBehavior.ClientNoAction)
                         .IsRequired();
 
+                    b.HasOne("EducationalPlataform.Entities.User", "Teacher")
+                        .WithMany()
+                        .HasForeignKey("TeacherId")
+                        .OnDelete(DeleteBehavior.ClientNoAction);
+
+                    b.HasOne("EducationalPlataform.Entities.User", null)
+                        .WithMany("Courses")
+                        .HasForeignKey("UserId");
+
                     b.Navigation("Creator");
+
+                    b.Navigation("Teacher");
                 });
 
             modelBuilder.Entity("EducationalPlataform.Entities.CourseEnrollment", b =>
@@ -170,6 +212,10 @@ namespace EducationalPlataform.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
+                    b.HasOne("EducationalPlataform.Entities.User", null)
+                        .WithMany("CourseEnrollments")
+                        .HasForeignKey("UserId1");
+
                     b.Navigation("Course");
 
                     b.Navigation("User");
@@ -183,7 +229,15 @@ namespace EducationalPlataform.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
+                    b.HasOne("EducationalPlataform.Entities.User", "Teacher")
+                        .WithMany("LessonsTaught")
+                        .HasForeignKey("TeacherId")
+                        .OnDelete(DeleteBehavior.ClientNoAction)
+                        .IsRequired();
+
                     b.Navigation("Course");
+
+                    b.Navigation("Teacher");
                 });
 
             modelBuilder.Entity("EducationalPlataform.Entities.Course", b =>
@@ -195,9 +249,15 @@ namespace EducationalPlataform.Migrations
 
             modelBuilder.Entity("EducationalPlataform.Entities.User", b =>
                 {
+                    b.Navigation("CourseEnrollments");
+
+                    b.Navigation("Courses");
+
                     b.Navigation("CoursesCreated");
 
                     b.Navigation("CoursesEnrolled");
+
+                    b.Navigation("LessonsTaught");
                 });
 #pragma warning restore 612, 618
         }

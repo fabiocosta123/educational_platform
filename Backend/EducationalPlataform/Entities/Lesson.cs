@@ -11,14 +11,16 @@ namespace EducationalPlataform.Entities
         public string? Content { get; set; }
         public DateTime Date { get; set; }
 
+        public bool IsCompleted { get; set; }
+
 
         // relationships
         [Required(ErrorMessage = "O curso é obrigatório.")]
         public int CourseId { get; set; }
-        public Course Course { get; set; }
+        public Course? Course { get; set; }
 
         public int TeacherId { get; set; }
-        public User Teacher { get; set; }
+        public User? Teacher { get; set; }
 
 
         // constructors

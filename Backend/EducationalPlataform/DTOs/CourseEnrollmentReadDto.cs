@@ -9,9 +9,10 @@
         
         public string? UserName { get; set; }
         public string? CourseTitle { get; set; }
+        public string? TeacherName { get; set; }
 
         public int ProgressPercentage { get; set; }
-        public string Status { get; set; }
+        public string Status { get; set; } = "Ativo";
         public int CompletedLessons { get; set; }
         public int TotalLessons { get; set; }
     }

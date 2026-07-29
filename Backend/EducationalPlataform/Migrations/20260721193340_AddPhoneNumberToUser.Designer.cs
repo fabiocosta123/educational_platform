@@ -12,8 +12,8 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace EducationalPlataform.Migrations
 {
     [DbContext(typeof(EducationalPlataformContext))]
-    [Migration("20260528212500_InitialCreate")]
-    partial class InitialCreate
+    [Migration("20260721193340_AddPhoneNumberToUser")]
+    partial class AddPhoneNumberToUser
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -39,12 +39,24 @@ namespace EducationalPlataform.Migrations
                     b.Property<string>("Description")
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<int?>("TeacherId")
+                        .HasColumnType("int");
+
                     b.Property<string>("Title")
-                        .HasColumnType("nvarchar(max)");
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<int?>("UserId")
+                        .HasColumnType("int");
 
                     b.HasKey("Id");
 
                     b.HasIndex("CreatorId");
+
+                    b.HasIndex("TeacherId");
+
+                    b.HasIndex("UserId");
 
                     b.ToTable("Courses");
                 });
@@ -57,11 +69,42 @@ namespace EducationalPlataform.Migrations
                     b.Property<int>("CourseId")
                         .HasColumnType("int");
 
+                    b.Property<int>("CompletedLessons")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime?>("EndDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<decimal?>("FinalGrade")
+                        .HasPrecision(5, 2)
+                        .HasColumnType("decimal(5,2)");
+
+                    b.Property<int>("Id")
+                        .HasColumnType("int");
+
+                    b.Property<int>("ProgressPercentage")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime?>("StartDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<int>("TotalLessons")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("UserId1")
+                        .HasColumnType("int");
+
                     b.HasKey("UserId", "CourseId");
 
                     b.HasIndex("CourseId");
 
-                    b.ToTable("CourseEnrollment");
+                    b.HasIndex("UserId1");
+
+                    b.ToTable("CourseEnrollments");
                 });
 
             modelBuilder.Entity("EducationalPlataform.Entities.Lesson", b =>
@@ -81,12 +124,19 @@ namespace EducationalPlataform.Migrations
                     b.Property<DateTime>("Date")
                         .HasColumnType("datetime2");
 
+                    b.Property<int>("TeacherId")
+                        .HasColumnType("int");
+
                     b.Property<string>("Title")
-                        .HasColumnType("nvarchar(max)");
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
 
                     b.HasKey("Id");
 
                     b.HasIndex("CourseId");
+
+                    b.HasIndex("TeacherId");
 
                     b.ToTable("Lessons");
                 });
@@ -103,14 +153,20 @@ namespace EducationalPlataform.Migrations
                         .HasColumnType("datetime2");
 
                     b.Property<string>("CPF")
-                        .IsRequired()
                         .HasColumnType("nvarchar(max)");
 
                     b.Property<string>("PasswordHash")
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<string>("PhoneNumber")
+                        .HasColumnType("nvarchar(max)");
+
                     b.Property<int>("Profile")
                         .HasColumnType("int");
+
+                    b.Property<string>("Role")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<string>("UserEmail")
                         .HasColumnType("nvarchar(max)");
@@ -128,10 +184,21 @@ namespace EducationalPlataform.Migrations
                     b.HasOne("EducationalPlataform.Entities.User", "Creator")
                         .WithMany("CoursesCreated")
                         .HasForeignKey("CreatorId")
-                        .OnDelete(DeleteBehavior.Restrict)
+                        .OnDelete(DeleteBehavior.ClientNoAction)
                         .IsRequired();
 
+                    b.HasOne("EducationalPlataform.Entities.User", "Teacher")
+                        .WithMany()
+                        .HasForeignKey("TeacherId")
+                        .OnDelete(DeleteBehavior.ClientNoAction);
+
+                    b.HasOne("EducationalPlataform.Entities.User", null)
+                        .WithMany("Courses")
+                        .HasForeignKey("UserId");
+
                     b.Navigation("Creator");
+
+                    b.Navigation("Teacher");
                 });
 
             modelBuilder.Entity("EducationalPlataform.Entities.CourseEnrollment", b =>
@@ -148,6 +215,10 @@ namespace EducationalPlataform.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
+                    b.HasOne("EducationalPlataform.Entities.User", null)
+                        .WithMany("CourseEnrollments")
+                        .HasForeignKey("UserId1");
+
                     b.Navigation("Course");
 
                     b.Navigation("User");
@@ -161,7 +232,15 @@ namespace EducationalPlataform.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
+                    b.HasOne("EducationalPlataform.Entities.User", "Teacher")
+                        .WithMany("LessonsTaught")
+                        .HasForeignKey("TeacherId")
+                        .OnDelete(DeleteBehavior.ClientNoAction)
+                        .IsRequired();
+
                     b.Navigation("Course");
+
+                    b.Navigation("Teacher");
                 });
 
             modelBuilder.Entity("EducationalPlataform.Entities.Course", b =>
@@ -173,9 +252,15 @@ namespace EducationalPlataform.Migrations
 
             modelBuilder.Entity("EducationalPlataform.Entities.User", b =>
                 {
+                    b.Navigation("CourseEnrollments");
+
+                    b.Navigation("Courses");
+
                     b.Navigation("CoursesCreated");
 
                     b.Navigation("CoursesEnrolled");
+
+                    b.Navigation("LessonsTaught");
                 });
 #pragma warning restore 612, 618
         }

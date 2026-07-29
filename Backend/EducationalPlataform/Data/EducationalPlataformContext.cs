@@ -1,6 +1,5 @@
 ﻿using EducationalPlataform.Entities;
 using Microsoft.EntityFrameworkCore;
-using System.Security.Cryptography.X509Certificates;
 
 namespace EducationalPlataform.Data
 {
@@ -8,56 +7,35 @@ namespace EducationalPlataform.Data
     {
         public EducationalPlataformContext(DbContextOptions<EducationalPlataformContext> options)
             : base(options)
-        { }
+        {
+        }
 
-        public DbSet<User> Users { get; set; }
-        public DbSet<Course> Courses { get; set; }
-        public DbSet<Lesson> Lessons { get; set; }
-        public DbSet<CourseEnrollment> CourseEnrollments { get; set; }
-
+        public DbSet<User> Users => Set<User>();
+        public DbSet<Course> Courses => Set<Course>();
+        public DbSet<Lesson> Lessons => Set<Lesson>();
+        public DbSet<CourseEnrollment> CourseEnrollments => Set<CourseEnrollment>();
+        public DbSet<Payment> Payments => Set<Payment>();
+        public DbSet<PaymentAudit> PaymentAudits => Set<PaymentAudit>();
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             base.OnModelCreating(modelBuilder);
 
-            // configuração da Fk TeacherId em Lesson
+            ConfigureLesson(modelBuilder);
+            ConfigureCourse(modelBuilder);
+            ConfigureCourseEnrollment(modelBuilder);
+            ConfigurePayment(modelBuilder);
+            ConfigurePaymentAudit(modelBuilder);
+        }
+
+        private static void ConfigureLesson(ModelBuilder modelBuilder)
+        {
             modelBuilder.Entity<Lesson>()
                 .HasOne(l => l.Teacher)
                 .WithMany(u => u.LessonsTaught)
                 .HasForeignKey(l => l.TeacherId)
-                .OnDelete(DeleteBehavior.Restrict);
+                .OnDelete(DeleteBehavior.ClientNoAction);
 
-            // relationships 1:N User - Course Create 
-
-            modelBuilder.Entity<Course>()
-                .HasOne(u => u.Creator)
-                .WithMany(c => c.CoursesCreated)
-                .HasForeignKey(c => c.CreatorId)
-                .OnDelete(DeleteBehavior.Restrict);
-
-            // relationships N:N User - Course
-            modelBuilder.Entity<CourseEnrollment>()
-                .HasKey(ce => new { ce.UserId, ce.CourseId });
-
-            modelBuilder.Entity<CourseEnrollment>()
-                .HasOne(ce => ce.User)
-                .WithMany(u => u.CoursesEnrolled)
-                .HasForeignKey(ce => ce.UserId)
-                .OnDelete(DeleteBehavior.Cascade);
-
-            modelBuilder.Entity<CourseEnrollment>()
-                .HasOne(ce => ce.Course)
-                .WithMany(c => c.EnrolledUsers)
-                .HasForeignKey(ce => ce.CourseId)
-                .OnDelete(DeleteBehavior.Cascade);
-
-            modelBuilder.Entity<CourseEnrollment>()
-                .Property(e => e.FinalGrade)
-                .HasPrecision(5, 2); 
-
-
-
-            // Relationship 1:N (Course → Lessons)
             modelBuilder.Entity<Lesson>()
                 .HasOne(l => l.Course)
                 .WithMany(c => c.Lessons)
@@ -65,6 +43,69 @@ namespace EducationalPlataform.Data
                 .OnDelete(DeleteBehavior.Cascade);
         }
 
+        private static void ConfigureCourse(ModelBuilder modelBuilder)
+        {
+            modelBuilder.Entity<Course>()
+                .HasOne(c => c.Creator)
+                .WithMany(u => u.CoursesCreated)
+                .HasForeignKey(c => c.CreatorId)
+                .OnDelete(DeleteBehavior.ClientNoAction);
 
+            modelBuilder.Entity<Course>()
+                .HasOne(c => c.Teacher)
+                .WithMany()
+                .HasForeignKey(c => c.TeacherId)
+                .OnDelete(DeleteBehavior.ClientNoAction);
+        }
+
+        private static void ConfigureCourseEnrollment(ModelBuilder modelBuilder)
+        {
+            modelBuilder.Entity<CourseEnrollment>()
+                .HasKey(e => new { e.UserId, e.CourseId });
+
+            modelBuilder.Entity<CourseEnrollment>()
+                .HasOne(e => e.User)
+                .WithMany(u => u.CoursesEnrolled)
+                .HasForeignKey(e => e.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            modelBuilder.Entity<CourseEnrollment>()
+                .HasOne(e => e.Course)
+                .WithMany(c => c.EnrolledUsers)
+                .HasForeignKey(e => e.CourseId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            modelBuilder.Entity<CourseEnrollment>()
+                .Property(e => e.FinalGrade)
+                .HasPrecision(5, 2);
+        }
+
+        private static void ConfigurePayment(ModelBuilder modelBuilder)
+        {
+            modelBuilder.Entity<Payment>()
+                .Property(p => p.Status)
+                .HasConversion<string>();
+
+            modelBuilder.Entity<Payment>()
+                .HasOne(p => p.User)
+                .WithMany(u => u.Payments)
+                .HasForeignKey(p => p.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            modelBuilder.Entity<Payment>()
+                .HasOne(p => p.Course)
+                .WithMany(c => c.Payments)
+                .HasForeignKey(p => p.CourseId)
+                .OnDelete(DeleteBehavior.Cascade);
+        }
+
+        private static void ConfigurePaymentAudit(ModelBuilder modelBuilder)
+        {
+            modelBuilder.Entity<PaymentAudit>()
+                .HasOne(a => a.Payment)
+                .WithMany(p => p.Audits)
+                .HasForeignKey(a => a.PaymentId)
+                .OnDelete(DeleteBehavior.Cascade);
+        }
     }
 }

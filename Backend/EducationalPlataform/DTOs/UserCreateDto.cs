@@ -10,6 +10,7 @@ public class UserCreateDto
     [Required(ErrorMessage = "O email é obrigatório.")]
     [EmailAddress(ErrorMessage = "O email deve ser válido.")]
     public string UserEmail { get; set; } = string.Empty;
+    public string PhoneNumber { get; set; }
 
     [Required(ErrorMessage = "A senha é obrigatória.")]
     public string Password { get; set; } = string.Empty;
@@ -23,4 +24,5 @@ public class UserCreateDto
 
     [Required(ErrorMessage = "Perfil é obrigatório.")]
     public UserProfile Profile { get; set; }
+    public string Role { get; set; } = string.Empty.ToLower();
 }

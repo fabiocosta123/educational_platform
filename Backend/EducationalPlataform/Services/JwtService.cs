@@ -1,5 +1,6 @@
 ﻿using EducationalPlataform.Entities;
 using EducationalPlataform.Interface;
+using EducationalPlataform.Models.Enums;
 using Microsoft.IdentityModel.Tokens;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
@@ -20,13 +21,13 @@ namespace EducationalPlataform.Services
         {
             var claims = new[]
             {
-                new Claim(JwtRegisteredClaimNames.Sub, user.UserEmail),
-                new Claim("name", user.UserName),
-                new Claim("profile", user.Profile.ToString())
-            };
+        new Claim(JwtRegisteredClaimNames.Sub, user.UserEmail),
+        new Claim("name", user.UserName),
+        new Claim("profile", user.Profile.ToString()),
+        new Claim(ClaimTypes.Role, user.Profile.ToString())
+    };
 
             var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_configuration["Jwt:Key"]));
-
             var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
 
             var token = new JwtSecurityToken(
@@ -35,9 +36,10 @@ namespace EducationalPlataform.Services
                 claims: claims,
                 expires: DateTime.Now.AddHours(2),
                 signingCredentials: creds
-                );
+            );
 
             return new JwtSecurityTokenHandler().WriteToken(token);
         }
+
     }
 }

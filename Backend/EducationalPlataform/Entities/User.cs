@@ -9,8 +9,8 @@ namespace EducationalPlataform.Entities
         public int Id { get; set; }
        
         public string? UserName { get; set; }
-        [EmailAddress(ErrorMessage = "Email inválido.")]
 
+        [EmailAddress(ErrorMessage = "Email inválido.")]
         public string? UserEmail { get; set; }
 
         
@@ -24,12 +24,22 @@ namespace EducationalPlataform.Entities
         
         public UserProfile Profile { get; set; }
 
+        public string Role { get; set; }
+
+        public string? PhoneNumber { get; set; }
 
         // relacionships
         public ICollection<Course> CoursesCreated { get; set; } = new List<Course>();
         public ICollection<CourseEnrollment> CoursesEnrolled { get; set; } = new List<CourseEnrollment>();
 
+        public ICollection<Course> Courses { get; set; } = new List<Course>();
+
         public ICollection<Lesson> LessonsTaught { get; set; } = new List<Lesson>();
+
+        public ICollection<CourseEnrollment> CourseEnrollments { get; set; } = new List<CourseEnrollment>();
+
+        public ICollection<Payment> Payments { get; set; }
+
 
 
         // constructor
