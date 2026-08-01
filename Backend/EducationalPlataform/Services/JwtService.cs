@@ -24,7 +24,9 @@ namespace EducationalPlataform.Services
         new Claim(JwtRegisteredClaimNames.Sub, user.UserEmail),
         new Claim("name", user.UserName),
         new Claim("profile", user.Profile.ToString()),
-        new Claim(ClaimTypes.Role, user.Profile.ToString())
+        new Claim(ClaimTypes.Role, Enum.GetName(typeof(UserProfile), user.Profile))
+
+        //new Claim(ClaimTypes.Role, user.Profile.ToString())
     };
 
             var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_configuration["Jwt:Key"]));

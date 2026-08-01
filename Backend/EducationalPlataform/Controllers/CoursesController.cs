@@ -95,7 +95,7 @@ namespace EducationalPlataform.Controllers
             course.Teacher = teacher;
             course.TeacherId = teacher.Id;
 
-            teacher.Courses.Add(course);
+            
 
 
             var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
@@ -125,8 +125,7 @@ namespace EducationalPlataform.Controllers
             var oldTeacher = course.Teacher;
 
             
-            var newTeacher = _context.Users
-                .Include(t => t.Courses)
+            var newTeacher = _context.Users                
                 .FirstOrDefault(u => u.Id == dto.TeacherId && u.Profile == UserProfile.Teacher);
 
             if (newTeacher == null)
@@ -138,16 +137,12 @@ namespace EducationalPlataform.Controllers
             course.TeacherId = dto.TeacherId;
             course.Teacher = newTeacher;
 
-            // remove o curso da lista do professor antigo
-            if (oldTeacher != null && oldTeacher.Id != newTeacher.Id)
-            {
-                oldTeacher.Courses.Remove(course);
-            }
+            
 
             // adiciona o curso à lista do novo professor
-            if (!newTeacher.Courses.Contains(course))
+            if (!newTeacher.CoursesTaught.Contains(course))
             {
-                newTeacher.Courses.Add(course);
+                newTeacher.CoursesTaught.Add(course);
             }
 
             _context.SaveChanges();

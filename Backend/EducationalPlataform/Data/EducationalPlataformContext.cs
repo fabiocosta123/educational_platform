@@ -52,10 +52,10 @@ namespace EducationalPlataform.Data
                 .OnDelete(DeleteBehavior.ClientNoAction);
 
             modelBuilder.Entity<Course>()
-                .HasOne(c => c.Teacher)
-                .WithMany()
-                .HasForeignKey(c => c.TeacherId)
-                .OnDelete(DeleteBehavior.ClientNoAction);
+               .HasOne(c => c.Teacher)
+               .WithMany(u => u.CoursesTaught)
+               .HasForeignKey(c => c.TeacherId)
+               .OnDelete(DeleteBehavior.ClientNoAction);
         }
 
         private static void ConfigureCourseEnrollment(ModelBuilder modelBuilder)
@@ -65,7 +65,7 @@ namespace EducationalPlataform.Data
 
             modelBuilder.Entity<CourseEnrollment>()
                 .HasOne(e => e.User)
-                .WithMany(u => u.CoursesEnrolled)
+                .WithMany(u => u.CourseEnrollments)
                 .HasForeignKey(e => e.UserId)
                 .OnDelete(DeleteBehavior.Cascade);
 
@@ -97,6 +97,10 @@ namespace EducationalPlataform.Data
                 .WithMany(c => c.Payments)
                 .HasForeignKey(p => p.CourseId)
                 .OnDelete(DeleteBehavior.Cascade);
+
+            modelBuilder.Entity<Payment>()
+               .Property(p => p.Amount)
+               .HasPrecision(10, 2);
         }
 
         private static void ConfigurePaymentAudit(ModelBuilder modelBuilder)

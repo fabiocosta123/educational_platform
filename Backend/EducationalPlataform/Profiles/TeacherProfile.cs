@@ -8,7 +8,7 @@ public class TeacherProfile : Profile
     {
         CreateMap<User, TeacherReadDto>()
             .ForMember(dest => dest.UserName, opt => opt.MapFrom(src => src.UserName ?? string.Empty))
-            .ForMember(dest => dest.Courses, opt => opt.MapFrom(src => src.Courses ?? new List<Course>()));
+            .ForMember(dest => dest.Courses, opt => opt.MapFrom(src => src.CoursesTaught ?? new List<Course>()));
 
         CreateMap<Course, CourseReadDto>()
             .ForMember(dest => dest.TeacherName, opt => opt.MapFrom(src => src.Teacher != null ? src.Teacher.UserName ?? string.Empty : string.Empty))

@@ -95,7 +95,7 @@ public class UsersController : ControllerBase
     }
 
     
-    [HttpPost("students")]
+    [HttpPost("students")]    
     public ActionResult<UserReadDto> CreateStudent([FromBody] StudentCreateDto dto)
     {
         if (string.IsNullOrWhiteSpace(dto.UserName))
@@ -123,14 +123,15 @@ public class UsersController : ControllerBase
             ProgressPercentage = 0
         };
 
-        _context.CourseEnrollments.Add(enrollment);
+        _context.CourseEnrollments.Add(enrollment);        
         _context.SaveChanges();
 
         var studentDto = _mapper.Map<UserReadDto>(student);
         return CreatedAtAction(nameof(GetById), new { id = student.Id }, studentDto);
     }
 
-    
+
+
     [HttpPut("{id}")]
     public async Task<IActionResult> Update(int id, [FromBody] StudentUpdateDto dto)
     {
@@ -143,6 +144,22 @@ public class UsersController : ControllerBase
         if (user == null)
             return NotFound();
 
+        Console.WriteLine("======================================");
+        Console.WriteLine($"EDITANDO USUÁRIO {user.Id}");
+        Console.WriteLine("===== MATRÍCULAS DO BANCO =====");
+
+        foreach (var e in user.CourseEnrollments)
+        {
+            Console.WriteLine($"UserId: {e.UserId} | CourseId: {e.CourseId} | Status: {e.Status}");
+        }
+
+        Console.WriteLine("===== DADOS RECEBIDOS DO FRONT =====");
+
+        foreach (var e in dto.CourseEnrollments)
+        {
+            Console.WriteLine($"CourseId: {e.CourseId} | Status: {e.Status}");
+        }
+
         // Atualiza dados básicos
         user.UserName = dto.UserName;
         user.UserEmail = dto.UserEmail;
@@ -150,38 +167,70 @@ public class UsersController : ControllerBase
         user.BirthDate = dto.BirthDate;
         user.Profile = UserProfile.Student;
 
-        // 🔹 Atualiza matrículas
+        // Atualiza matrículas
         var existingCourseIds = user.CourseEnrollments.Select(e => e.CourseId).ToList();
         var newCourseIds = dto.CourseEnrollments.Select(e => e.CourseId).ToList();
 
-        // Remove cursos que não estão mais na lista
-        var toRemove = user.CourseEnrollments.Where(e => !newCourseIds.Contains(e.CourseId)).ToList();
-        foreach (var enrollment in toRemove)
-            _context.CourseEnrollments.Remove(enrollment);
+        Console.WriteLine("===== CURSOS A REMOVER =====");
 
-        // Atualiza ou adiciona cursos
+        var toRemove = user.CourseEnrollments
+            .Where(e => !newCourseIds.Contains(e.CourseId))
+            .ToList();
+
+        foreach (var enrollment in toRemove)
+        {
+            Console.WriteLine($"REMOVENDO CourseId {enrollment.CourseId}");
+            _context.CourseEnrollments.Remove(enrollment);
+        }
+
+        Console.WriteLine("===== PROCESSANDO CURSOS =====");
+
         foreach (var enrollmentDto in dto.CourseEnrollments)
         {
-            var enrollment = user.CourseEnrollments.FirstOrDefault(e => e.CourseId == enrollmentDto.CourseId);
+            Console.WriteLine($"Procurando CourseId {enrollmentDto.CourseId}");
+
+            var enrollment = user.CourseEnrollments
+                .FirstOrDefault(e => e.CourseId == enrollmentDto.CourseId);
+
             if (enrollment != null)
             {
+                Console.WriteLine("MATRÍCULA ENCONTRADA -> Atualizando");
+
                 enrollment.Status = enrollmentDto.Status;
             }
             else
             {
+                Console.WriteLine("MATRÍCULA NÃO ENCONTRADA -> Inserindo");
+
                 user.CourseEnrollments.Add(new CourseEnrollment
                 {
-                    CourseId = enrollmentDto.CourseId,
                     UserId = user.Id,
+                    CourseId = enrollmentDto.CourseId,
                     Status = enrollmentDto.Status,
                     ProgressPercentage = 0
                 });
             }
         }
 
+        Console.WriteLine("===== ANTES DO SAVECHANGES =====");
+
+        foreach (var e in user.CourseEnrollments)
+        {
+            Console.WriteLine($"UserId: {e.UserId} | CourseId: {e.CourseId} | Status: {e.Status}");
+        }
+
+        Console.WriteLine("===== CHANGE TRACKER =====");
+
+        foreach (var item in _context.ChangeTracker.Entries<CourseEnrollment>())
+        {
+            Console.WriteLine(
+                $"Estado: {item.State} | UserId: {item.Entity.UserId} | CourseId: {item.Entity.CourseId}");
+        }
+
         await _context.SaveChangesAsync();
 
-        //recarrega com includes Teacher e Course 
+        await _context.SaveChangesAsync();
+
         var updatedUser = await _context.Users
             .Include(u => u.CourseEnrollments)
                 .ThenInclude(e => e.Course)
@@ -189,10 +238,11 @@ public class UsersController : ControllerBase
             .FirstOrDefaultAsync(u => u.Id == id);
 
         var userDto = _mapper.Map<UserReadDto>(updatedUser);
+
         return Ok(userDto);
     }
 
-    
+
     [HttpPut("pix/pay/{paymentId}")]
     public async Task<IActionResult> MarkAsPaid(int paymentId)
     {

@@ -58,9 +58,9 @@ namespace EducationalPlataform.Controllers
             {
                 var teachers = await _context.Users
                     .Where(u => u.Profile == UserProfile.Teacher)
-                    .Include(u => u.Courses)
+                    .Include(u => u.CoursesTaught)
                         .ThenInclude(c => c.Lessons)
-                    .Include(u => u.Courses)
+                    .Include(u => u.CoursesTaught)
                         .ThenInclude(c => c.EnrolledUsers)
                             .ThenInclude(e => e.User)
                     .ToListAsync();

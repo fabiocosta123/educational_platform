@@ -30,9 +30,9 @@ namespace EducationalPlataform.Entities
 
         // relacionships
         public ICollection<Course> CoursesCreated { get; set; } = new List<Course>();
-        public ICollection<CourseEnrollment> CoursesEnrolled { get; set; } = new List<CourseEnrollment>();
+        
 
-        public ICollection<Course> Courses { get; set; } = new List<Course>();
+        public ICollection<Course> CoursesTaught { get; set; } = new List<Course>();
 
         public ICollection<Lesson> LessonsTaught { get; set; } = new List<Lesson>();
 
