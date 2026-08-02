@@ -7,34 +7,57 @@ namespace EducationalPlataform.Entities
         public int Id { get; set; }
         [Required(ErrorMessage = "Título é obrigatório.")]
         [StringLength(100, ErrorMessage = "O título deve ter no máximo 100 caracteres.")]
-        public string? Title { get; set; }
-        public string? Content { get; set; }
-        public DateTime Date { get; set; }
+        public string? Title { get; set; } = string.Empty;
 
-        public bool IsCompleted { get; set; }
+        [StringLength(1000, ErrorMessage = "O conteúdo deve ter no máximo 1000 caracteres.")]
+        public string? Description { get; set; }
+
+        [Required(ErrorMessage = "O link do video é obrigatório.")]
+        public string VideoUrl { get; set; } = string.Empty;
+
+        public string? PdfUrl { get; set; }
+
+        public int Order { get; set; }
+
+        public int DurationSeconds { get; set; }
+
+        public bool IsPublished { get; set; } = true;
 
 
-        // relationships
-        [Required(ErrorMessage = "O curso é obrigatório.")]
-        public int CourseId { get; set; }
-        public Course? Course { get; set; }
+        // relacionamentos
+        [Required]
+        public int CourseModuleId { get; set; }
 
+        public CourseModule? CourseModule { get; set; }
+
+        [Required]
         public int TeacherId { get; set; }
-        public User? Teacher { get; set; }
 
+        public User? Teacher { get; set; } = null!;
+
+        public ICollection<LessonProgress> Progresses { get; set; } = new List<LessonProgress>();
 
         // constructors
-        public Lesson() { }
-
-        public Lesson(string? title, string? content, DateTime date, int courseId, int teacherId)
+        public Lesson()
         {
-            
+        }
+
+        public Lesson(
+            string title,
+            string? description,
+            string videoUrl,
+            string? pdfUrl,
+            int courseModuleId,
+            int teacherId,
+            int order)
+        {
             Title = title;
-            Content = content;
-            Date = date;
-            CourseId = courseId;
+            Description = description;
+            VideoUrl = videoUrl;
+            PdfUrl = pdfUrl;
+            CourseModuleId = courseModuleId;
             TeacherId = teacherId;
-            
+            Order = order;
         }
 
     }

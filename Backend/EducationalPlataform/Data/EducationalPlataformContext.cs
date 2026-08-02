@@ -37,9 +37,9 @@ namespace EducationalPlataform.Data
                 .OnDelete(DeleteBehavior.ClientNoAction);
 
             modelBuilder.Entity<Lesson>()
-                .HasOne(l => l.Course)
+                .HasOne(l => l.CourseModule)
                 .WithMany(c => c.Lessons)
-                .HasForeignKey(l => l.CourseId)
+                .HasForeignKey(l => l.CourseModuleId)
                 .OnDelete(DeleteBehavior.Cascade);
         }
 
@@ -56,6 +56,69 @@ namespace EducationalPlataform.Data
                .WithMany(u => u.CoursesTaught)
                .HasForeignKey(c => c.TeacherId)
                .OnDelete(DeleteBehavior.ClientNoAction);
+        }
+
+        public static void ConfigureLessonProgress(ModelBuilder modelBuilder)
+        {
+            modelBuilder.Entity<LessonProgress>(entity =>
+            {
+                // ==========================
+                // Tabela
+                // ==========================
+
+                entity.ToTable("LessonProgress");
+
+                entity.HasKey(lp => lp.Id);
+
+                // ==========================
+                // Índices
+                // ==========================
+
+                // Um usuário só pode possuir um progresso por aula.
+                entity.HasIndex(lp => new
+                {
+                    lp.UserId,
+                    lp.LessonId
+                })
+                .IsUnique();
+
+                // ==========================
+                // Relacionamento Usuário
+                // ==========================
+
+                entity.HasOne(lp => lp.User)
+                    .WithMany()
+                    .HasForeignKey(lp => lp.UserId)
+                    .OnDelete(DeleteBehavior.Cascade);
+
+                // ==========================
+                // Relacionamento Aula
+                // ==========================
+
+                entity.HasOne(lp => lp.Lesson)
+                    .WithMany(l => l.Progresses)
+                    .HasForeignKey(lp => lp.LessonId)
+                    .OnDelete(DeleteBehavior.Cascade);
+
+                // ==========================
+                // Valores padrão
+                // ==========================
+
+                entity.Property(lp => lp.StartedAt)
+                    .HasDefaultValueSql("GETDATE()");
+
+                entity.Property(lp => lp.LastWatchedSecond)
+                    .HasDefaultValue(0);
+
+                entity.Property(lp => lp.MaxWatchedSecond)
+                    .HasDefaultValue(0);
+
+                entity.Property(lp => lp.TotalWatchedSeconds)
+                    .HasDefaultValue(0);
+
+                entity.Property(lp => lp.Completed)
+                    .HasDefaultValue(false);
+            });
         }
 
         private static void ConfigureCourseEnrollment(ModelBuilder modelBuilder)
