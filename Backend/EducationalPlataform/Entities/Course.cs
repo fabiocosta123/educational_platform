@@ -24,7 +24,7 @@ namespace EducationalPlataform.Entities
 
         // relationships
         public ICollection<CourseEnrollment> EnrolledUsers { get; set; } = new List<CourseEnrollment>();
-        public ICollection<CourseModule> Modules { get; set; } 
+        public ICollection<CourseModule> Modules { get; set; } = new List<CourseModule>();
 
         public ICollection<Payment> Payments { get; set; }
 

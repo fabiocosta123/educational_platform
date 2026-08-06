@@ -1,112 +1,169 @@
 ﻿using AutoMapper;
 using EducationalPlataform.Data;
-using EducationalPlataform.Entities;
 using EducationalPlataform.DTOs;
-using Microsoft.AspNetCore.Mvc;
+using EducationalPlataform.Entities;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 using System.Security.Claims;
 
 namespace EducationalPlataform.Controllers
 {
     [Authorize]
-    [Route("api/[controller]")]
     [ApiController]
+    [Route("api/[controller]")]
     public class LessonsController : ControllerBase
     {
         private readonly EducationalPlataformContext _context;
         private readonly IMapper _mapper;
 
-
-        public LessonsController(EducationalPlataformContext context, IMapper mapper)
+        public LessonsController(
+            EducationalPlataformContext context,
+            IMapper mapper)
         {
             _context = context;
             _mapper = mapper;
         }
 
-        [HttpGet]
-        public ActionResult<IEnumerable<LessonReadDto>> GetAll()
-        {
-            var lessons = _context.Lessons.ToList();
-            var lessonsDto = _mapper.Map<List<LessonReadDto>>(lessons);
+        
+        // Lista todas 
+       
 
-            return Ok(lessonsDto);
+        [HttpGet]
+        public async Task<ActionResult<IEnumerable<LessonReadDto>>> GetAll()
+        {
+            var lessons = await _context.Lessons
+                .AsNoTracking()
+                .Include(l => l.Teacher)
+                .Include(l => l.CourseModule)
+                .OrderBy(l => l.Order)
+                .ToListAsync();
+
+            return Ok(_mapper.Map<List<LessonReadDto>>(lessons));
         }
+
+        
+        // Buscar por id
+        
 
         [HttpGet("{id}")]
-        public ActionResult<LessonReadDto> GetById(int id)
+        public async Task<ActionResult<LessonReadDto>> GetById(int id)
         {
-            var lesson = _context.Lessons.Find(id);
-            if (lesson == null)
-                throw new ArgumentException($"Course with id {id} not found");
+            var lesson = await _context.Lessons
+                .AsNoTracking()
+                .Include(l => l.Teacher)
+                .Include(l => l.CourseModule)
+                .FirstOrDefaultAsync(l => l.Id == id);
 
-            var lessonDto = _mapper.Map<LessonReadDto>(lesson);
-            return Ok(lessonDto);
+            if (lesson == null)
+                return NotFound();
+
+            return Ok(_mapper.Map<LessonReadDto>(lesson));
         }
 
+        
+        // Estatisticas do professor
+        
 
         [HttpGet("teacher/{teacherId}/stats")]
-        public ActionResult<object> GetLessonStatsByTeacher(int teacherId)
+        public async Task<ActionResult> GetLessonStatsByTeacher(int teacherId)
         {
-            var lessons = _context.Lessons.Where(l => l.TeacherId == teacherId).ToList();
-
-            var count = lessons.Count;
-            var nextLesson = lessons
-                .Where(l => l.Date > DateTime.Now)
-                .OrderBy(l => l.Date)
-                .FirstOrDefault();
+            var lessons = await _context.Lessons
+                .Where(l => l.TeacherId == teacherId)
+                .ToListAsync();
 
             return Ok(new
             {
-                totalLessons = count,
-                nextLessonDate = nextLesson?.Date
+                totalLessons = lessons.Count,
+                publishedLessons = lessons.Count(l => l.IsPublished),
+                unpublishedLessons = lessons.Count(l => !l.IsPublished)
             });
         }
 
-        [HttpPost]
-        public async Task<ActionResult<LessonReadDto>> Create([FromBody] LessonCreateDto dto)
-        {
-            var teacherId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier));
+        
+        // Cria 
+        
 
-            var lesson = new Lesson(
-                dto.Title,
-                dto.Content,
-                dto.Date,
-                dto.CourseId,
-                teacherId
-             );
+        [HttpPost]
+        public async Task<ActionResult<LessonReadDto>> Create(
+            [FromBody] LessonCreateDto dto)
+        {
+            var teacherId = int.Parse(
+                User.FindFirstValue(ClaimTypes.NameIdentifier)!);
+
+            var lesson = new Lesson
+            {
+                Title = dto.Title,
+                Description = dto.Description,
+                VideoUrl = dto.VideoUrl,
+                PdfUrl = dto.PdfUrl,
+                DurationSeconds = dto.DurationSeconds,
+                Order = dto.Order,
+                IsPublished = dto.IsPublished,
+                CourseModuleId = dto.CourseModuleId,
+                TeacherId = teacherId
+            };
 
             _context.Lessons.Add(lesson);
+
             await _context.SaveChangesAsync();
 
-            var lessonReadDto = _mapper.Map<LessonReadDto>(lesson);
+            await _context.Entry(lesson)
+                .Reference(l => l.Teacher)
+                .LoadAsync();
 
-            return CreatedAtAction(nameof(GetById), new { id = lesson.Id }, lessonReadDto);
+            return CreatedAtAction(
+                nameof(GetById),
+                new { id = lesson.Id },
+                _mapper.Map<LessonReadDto>(lesson));
         }
+
+        
+        // Altera 
+        
 
         [HttpPut("{id}")]
-        public async Task<ActionResult> Update(int id, [FromBody] LessonUpdateDto dto)
+        public async Task<IActionResult> Update(
+            int id,
+            [FromBody] LessonUpdateDto dto)
         {
-            var lesson = _context.Lessons.FindAsync(id);
-            if (lesson == null)
-                throw new ArgumentException($"Lesson with id {id} not found");
+            var lesson = await _context.Lessons
+                .FirstOrDefaultAsync(l => l.Id == id);
 
-            _mapper.Map(dto, lesson);
+            if (lesson == null)
+                return NotFound();
+
+            lesson.Title = dto.Title;
+            lesson.Description = dto.Description;
+            lesson.VideoUrl = dto.VideoUrl;
+            lesson.PdfUrl = dto.PdfUrl;
+            lesson.DurationSeconds = dto.DurationSeconds;
+            lesson.Order = dto.Order;
+            lesson.IsPublished = dto.IsPublished;
+            lesson.CourseModuleId = dto.CourseModuleId;
+
             await _context.SaveChangesAsync();
-            
+
             return NoContent();
         }
+
+        
+        // Excluir 
+        
 
         [HttpDelete("{id}")]
-        public ActionResult Delete(int id)
+        public async Task<IActionResult> Delete(int id)
         {
-            var lesson = _context.Lessons.Find(id);
+            var lesson = await _context.Lessons.FindAsync(id);
+
             if (lesson == null)
-                throw new ArgumentException($"Course with id {id} not found");
+                return NotFound();
+
             _context.Lessons.Remove(lesson);
-            _context.SaveChanges();
+
+            await _context.SaveChangesAsync();
 
             return NoContent();
         }
-       
     }
 }

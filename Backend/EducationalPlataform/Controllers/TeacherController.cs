@@ -28,26 +28,25 @@ namespace EducationalPlataform.Controllers
         {
             var courses = await _context.Courses
                 .Where(c => c.TeacherId == teacherId)
-                .Include(c => c.Lessons)
+                .Include(c => c.Modules)
+                    .ThenInclude(m => m.Lessons)
                 .Include(c => c.EnrolledUsers)
                 .ToListAsync();
 
             var coursesCount = courses.Count;
-            var lessonsCount = courses.Sum(c => c.Lessons.Count);
+
+            var lessonsCount = courses.Sum(c => c.Modules.Sum(m => m.Lessons.Count));
+
             var studentsCount = courses.Sum(c => c.EnrolledUsers.Count);
 
-            var nextLesson = courses
-                .SelectMany(c => c.Lessons)
-                .Where(l => l.Date > DateTime.Now)
-                .OrderBy(l => l.Date)
-                .FirstOrDefault();
+            var nextLesson = (Lesson?)null;
 
             return Ok(new
             {
                 coursesCount,
                 lessonsCount,
                 studentsCount,
-                nextLessonDate = nextLesson?.Date
+                nextLessonDate = (DateTime?)null
             });
         }
 
@@ -59,7 +58,9 @@ namespace EducationalPlataform.Controllers
                 var teachers = await _context.Users
                     .Where(u => u.Profile == UserProfile.Teacher)
                     .Include(u => u.CoursesTaught)
-                        .ThenInclude(c => c.Lessons)
+                        .ThenInclude(c => c.Modules)
+                        .ThenInclude(m => m.Lessons)
+
                     .Include(u => u.CoursesTaught)
                         .ThenInclude(c => c.EnrolledUsers)
                             .ThenInclude(e => e.User)

@@ -17,6 +17,9 @@ namespace EducationalPlataform.Data
         public DbSet<Payment> Payments => Set<Payment>();
         public DbSet<PaymentAudit> PaymentAudits => Set<PaymentAudit>();
 
+        public DbSet<CourseModule> CourseModules => Set<CourseModule>();
+        public DbSet<LessonProgress> LessonProgresses => Set<LessonProgress>();
+
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             base.OnModelCreating(modelBuilder);
@@ -62,17 +65,16 @@ namespace EducationalPlataform.Data
         {
             modelBuilder.Entity<LessonProgress>(entity =>
             {
-                // ==========================
-                // Tabela
-                // ==========================
+                
+                // Tabela                
 
                 entity.ToTable("LessonProgress");
 
                 entity.HasKey(lp => lp.Id);
 
-                // ==========================
+                
                 // Índices
-                // ==========================
+                
 
                 // Um usuário só pode possuir um progresso por aula.
                 entity.HasIndex(lp => new
@@ -82,27 +84,27 @@ namespace EducationalPlataform.Data
                 })
                 .IsUnique();
 
-                // ==========================
+                
                 // Relacionamento Usuário
-                // ==========================
+                
 
                 entity.HasOne(lp => lp.User)
                     .WithMany()
                     .HasForeignKey(lp => lp.UserId)
                     .OnDelete(DeleteBehavior.Cascade);
 
-                // ==========================
+                
                 // Relacionamento Aula
-                // ==========================
+                
 
                 entity.HasOne(lp => lp.Lesson)
                     .WithMany(l => l.Progresses)
                     .HasForeignKey(lp => lp.LessonId)
                     .OnDelete(DeleteBehavior.Cascade);
 
-                // ==========================
+                
                 // Valores padrão
-                // ==========================
+                
 
                 entity.Property(lp => lp.StartedAt)
                     .HasDefaultValueSql("GETDATE()");

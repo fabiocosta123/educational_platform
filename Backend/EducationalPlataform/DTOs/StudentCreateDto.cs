@@ -9,7 +9,7 @@
         public DateTime BirthDate { get; set; }
 
         public int CourseId { get; set; }
-        public int TeacherId { get; set; }
+        
         public string Status { get; set; } = "Ativo";
     }
 }
