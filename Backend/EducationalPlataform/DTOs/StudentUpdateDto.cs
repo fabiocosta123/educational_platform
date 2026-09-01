@@ -9,13 +9,14 @@ public class StudentUpdateDto
     public DateTime BirthDate { get; set; }
     public UserProfile Profile { get; set; }
 
-    // Novo campo para manter cursos
-    public List<CourseEnrollmentDto> CourseEnrollments { get; set; } = new();
+    public int CurrentCourseId { get; set; }
+
+    public int NewCourseId { get; set; }
+
+    public string Status { get; set; } = "Ativo";
+
+
 }
 
-public class CourseEnrollmentDto
-{
-    public int CourseId { get; set; }
-    public string Status { get; set; } = string.Empty;
-}
+
 

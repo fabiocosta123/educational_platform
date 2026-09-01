@@ -112,6 +112,8 @@ builder.Services.AddSwaggerGen(c =>
 
 var app = builder.Build();
 
+app.UseStaticFiles();
+
 // Migrations
 using (var scope = app.Services.CreateScope())
 {

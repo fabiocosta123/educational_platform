@@ -4,6 +4,7 @@ using EducationalPlataform.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
@@ -11,9 +12,11 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace EducationalPlataform.Migrations
 {
     [DbContext(typeof(EducationalPlataformContext))]
-    partial class EducationalPlataformContextModelSnapshot : ModelSnapshot
+    [Migration("20260824192407_RefactorPrimaryKey")]
+    partial class RefactorPrimaryKey
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -55,16 +58,13 @@ namespace EducationalPlataform.Migrations
 
             modelBuilder.Entity("EducationalPlataform.Entities.CourseEnrollment", b =>
                 {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("int");
-
-                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
-
-                    b.Property<int>("CompletedLessons")
+                    b.Property<int>("UserId")
                         .HasColumnType("int");
 
                     b.Property<int>("CourseId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("CompletedLessons")
                         .HasColumnType("int");
 
                     b.Property<DateTime?>("EndDate")
@@ -73,6 +73,9 @@ namespace EducationalPlataform.Migrations
                     b.Property<decimal?>("FinalGrade")
                         .HasPrecision(5, 2)
                         .HasColumnType("decimal(5,2)");
+
+                    b.Property<int>("Id")
+                        .HasColumnType("int");
 
                     b.Property<int>("ProgressPercentage")
                         .HasColumnType("int");
@@ -87,15 +90,9 @@ namespace EducationalPlataform.Migrations
                     b.Property<int>("TotalLessons")
                         .HasColumnType("int");
 
-                    b.Property<int>("UserId")
-                        .HasColumnType("int");
-
-                    b.HasKey("Id");
+                    b.HasKey("UserId", "CourseId");
 
                     b.HasIndex("CourseId");
-
-                    b.HasIndex("UserId", "CourseId")
-                        .IsUnique();
 
                     b.ToTable("CourseEnrollments");
                 });
@@ -188,9 +185,7 @@ namespace EducationalPlataform.Migrations
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
 
                     b.Property<bool>("Completed")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("bit")
-                        .HasDefaultValue(false);
+                        .HasColumnType("bit");
 
                     b.Property<DateTime?>("CompletedAt")
                         .HasColumnType("datetime2");
@@ -199,27 +194,19 @@ namespace EducationalPlataform.Migrations
                         .HasColumnType("datetime2");
 
                     b.Property<int>("LastWatchedSecond")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("int")
-                        .HasDefaultValue(0);
+                        .HasColumnType("int");
 
                     b.Property<int>("LessonId")
                         .HasColumnType("int");
 
                     b.Property<int>("MaxWatchedSecond")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("int")
-                        .HasDefaultValue(0);
+                        .HasColumnType("int");
 
                     b.Property<DateTime>("StartedAt")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("datetime2")
-                        .HasDefaultValueSql("GETDATE()");
+                        .HasColumnType("datetime2");
 
                     b.Property<int>("TotalWatchedSeconds")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("int")
-                        .HasDefaultValue(0);
+                        .HasColumnType("int");
 
                     b.Property<int>("UserId")
                         .HasColumnType("int");
@@ -231,10 +218,9 @@ namespace EducationalPlataform.Migrations
 
                     b.HasIndex("LessonId");
 
-                    b.HasIndex("UserId", "LessonId")
-                        .IsUnique();
+                    b.HasIndex("UserId");
 
-                    b.ToTable("LessonProgress", (string)null);
+                    b.ToTable("LessonProgresses");
                 });
 
             modelBuilder.Entity("EducationalPlataform.Entities.Payment", b =>

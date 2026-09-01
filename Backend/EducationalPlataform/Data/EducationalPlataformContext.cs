@@ -27,6 +27,7 @@ namespace EducationalPlataform.Data
             ConfigureLesson(modelBuilder);
             ConfigureCourse(modelBuilder);
             ConfigureCourseEnrollment(modelBuilder);
+            ConfigureLessonProgress(modelBuilder);
             ConfigurePayment(modelBuilder);
             ConfigurePaymentAudit(modelBuilder);
         }
@@ -126,7 +127,7 @@ namespace EducationalPlataform.Data
         private static void ConfigureCourseEnrollment(ModelBuilder modelBuilder)
         {
             modelBuilder.Entity<CourseEnrollment>()
-                .HasKey(e => new { e.UserId, e.CourseId });
+                .HasKey(e => e.Id);
 
             modelBuilder.Entity<CourseEnrollment>()
                 .HasOne(e => e.User)
@@ -143,6 +144,10 @@ namespace EducationalPlataform.Data
             modelBuilder.Entity<CourseEnrollment>()
                 .Property(e => e.FinalGrade)
                 .HasPrecision(5, 2);
+
+            modelBuilder.Entity<CourseEnrollment>()
+                .HasIndex(e => new { e.UserId, e.CourseId })
+                .IsUnique();
         }
 
         private static void ConfigurePayment(ModelBuilder modelBuilder)

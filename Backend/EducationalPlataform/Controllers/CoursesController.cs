@@ -191,7 +191,7 @@ namespace EducationalPlataform.Controllers
 
             var courses = await _context.Courses
                 .AsNoTracking()
-                .Where(c => c.CreatorId == id)
+                .Where(c => c.TeacherId == id)
                 .Include(c => c.Teacher)
                 .Include(c => c.Modules)
                     .ThenInclude(m => m.Lessons)

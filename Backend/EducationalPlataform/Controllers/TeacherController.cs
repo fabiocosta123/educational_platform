@@ -75,7 +75,32 @@ namespace EducationalPlataform.Controllers
             }
         }
 
-        [HttpGet("list")]
+
+        [HttpGet("{teacherId}")]
+        public async Task<ActionResult<TeacherReadDto>> GetTeacherById(int teacherId)
+        {
+            var teacher = await _context.Users
+                .Where(u => u.Id == teacherId && u.Profile == UserProfile.Teacher)
+                .Include(u => u.CoursesTaught)
+                    .ThenInclude(c => c.Modules)
+                    .ThenInclude(m => m.Lessons)
+                .Include(u => u.CoursesTaught)
+                    .ThenInclude(c => c.EnrolledUsers)
+                        .ThenInclude(e => e.User)
+                .FirstOrDefaultAsync();
+
+            if (teacher == null)
+            {
+                return NotFound("Professor não encontrado.");
+            }
+
+            var teacherDto = _mapper.Map<TeacherReadDto>(teacher);
+            return Ok(teacherDto);
+        }
+        
+
+
+            [HttpGet("list")]
         public async Task<ActionResult<IEnumerable<UserReadDto>>> GetTeachersList()
         {
             var teachers = await _context.Users

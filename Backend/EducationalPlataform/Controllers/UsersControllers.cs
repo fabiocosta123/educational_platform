@@ -6,6 +6,7 @@ using EducationalPlataform.Models.Enums;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using System.Security.Claims;
 
 
 [Authorize]
@@ -94,10 +95,19 @@ public class UsersController : ControllerBase
         return CreatedAtAction(nameof(GetById), new { id = user.Id }, userReadDto);
     }
 
-    
-    [HttpPost("students")]    
+
+    [HttpPost("students")]
     public ActionResult<UserReadDto> CreateStudent([FromBody] StudentCreateDto dto)
     {
+
+        var today = DateTime.Today;
+
+        if (dto.BirthDate > today.AddYears(-10))
+            return BadRequest("Aluno deve ter pelo menos 10 anos de idade.");
+
+        if (dto.BirthDate < today.AddYears(-100))
+            return BadRequest("Aluno deve ter no máximo 100 anos de idade.");
+
         if (string.IsNullOrWhiteSpace(dto.UserName))
             return BadRequest("Nome é obrigatório.");
 
@@ -123,7 +133,7 @@ public class UsersController : ControllerBase
             ProgressPercentage = 0
         };
 
-        _context.CourseEnrollments.Add(enrollment);        
+        _context.CourseEnrollments.Add(enrollment);
         _context.SaveChanges();
 
         var studentDto = _mapper.Map<UserReadDto>(student);
@@ -133,115 +143,166 @@ public class UsersController : ControllerBase
 
 
     [HttpPut("{id}")]
-    public async Task<IActionResult> Update(int id, [FromBody] StudentUpdateDto dto)
+    public async Task<IActionResult> Update(
+    int id,
+    [FromBody] StudentUpdateDto dto)
     {
-        var user = await _context.Users
-            .Include(u => u.CourseEnrollments)
-                .ThenInclude(e => e.Course)
-                    .ThenInclude(c => c.Teacher)
-            .FirstOrDefaultAsync(u => u.Id == id);
-
-        if (user == null)
-            return NotFound();
-
-        Console.WriteLine("======================================");
-        Console.WriteLine($"EDITANDO USUÁRIO {user.Id}");
-        Console.WriteLine("===== MATRÍCULAS DO BANCO =====");
-
-        foreach (var e in user.CourseEnrollments)
+        try
         {
-            Console.WriteLine($"UserId: {e.UserId} | CourseId: {e.CourseId} | Status: {e.Status}");
-        }
+            Console.WriteLine("========== UPDATE STUDENT ==========");
 
-        Console.WriteLine("===== DADOS RECEBIDOS DO FRONT =====");
+            Console.WriteLine($"Authenticated: {User.Identity?.IsAuthenticated}");
+            Console.WriteLine($"Name: {User.Identity?.Name}");
+            Console.WriteLine($"Role: {User.FindFirst(ClaimTypes.Role)?.Value}");
+            Console.WriteLine($"Is Coordinator: {User.IsInRole("Coordinator")}");
+            Console.WriteLine($"User ID: {User.FindFirst(ClaimTypes.NameIdentifier)?.Value}");
 
-        foreach (var e in dto.CourseEnrollments)
-        {
-            Console.WriteLine($"CourseId: {e.CourseId} | Status: {e.Status}");
-        }
+            Console.WriteLine($"Student ID: {id}");
+            Console.WriteLine($"CurrentCourseId: {dto.CurrentCourseId}");
+            Console.WriteLine($"NewCourseId: {dto.NewCourseId}");
 
-        // Atualiza dados básicos
-        user.UserName = dto.UserName;
-        user.UserEmail = dto.UserEmail;
-        user.PhoneNumber = dto.PhoneNumber;
-        user.BirthDate = dto.BirthDate;
-        user.Profile = UserProfile.Student;
+            var today = DateTime.Today;
 
-        // Atualiza matrículas
-        var existingCourseIds = user.CourseEnrollments.Select(e => e.CourseId).ToList();
-        var newCourseIds = dto.CourseEnrollments.Select(e => e.CourseId).ToList();
+            Console.WriteLine("Validando idade...");
 
-        Console.WriteLine("===== CURSOS A REMOVER =====");
+            if (dto.BirthDate > today.AddYears(-12))
+                return BadRequest("Aluno deve ter pelo menos 12 anos.");
 
-        var toRemove = user.CourseEnrollments
-            .Where(e => !newCourseIds.Contains(e.CourseId))
-            .ToList();
+            if (dto.BirthDate < today.AddYears(-100))
+                return BadRequest("Aluno deve ter no máximo 100 anos.");
 
-        foreach (var enrollment in toRemove)
-        {
-            Console.WriteLine($"REMOVENDO CourseId {enrollment.CourseId}");
-            _context.CourseEnrollments.Remove(enrollment);
-        }
+            Console.WriteLine("Idade válida.");
 
-        Console.WriteLine("===== PROCESSANDO CURSOS =====");
+            Console.WriteLine("Buscando aluno no banco...");
 
-        foreach (var enrollmentDto in dto.CourseEnrollments)
-        {
-            Console.WriteLine($"Procurando CourseId {enrollmentDto.CourseId}");
+            var user = await _context.Users
+                .Include(u => u.CourseEnrollments)
+                .FirstOrDefaultAsync(u => u.Id == id);
 
-            var enrollment = user.CourseEnrollments
-                .FirstOrDefault(e => e.CourseId == enrollmentDto.CourseId);
+            Console.WriteLine("Consulta do aluno finalizada.");
 
-            if (enrollment != null)
+            if (user == null)
             {
-                Console.WriteLine("MATRÍCULA ENCONTRADA -> Atualizando");
-
-                enrollment.Status = enrollmentDto.Status;
+                Console.WriteLine("Aluno não encontrado.");
+                return NotFound();
             }
-            else
-            {
-                Console.WriteLine("MATRÍCULA NÃO ENCONTRADA -> Inserindo");
 
-                user.CourseEnrollments.Add(new CourseEnrollment
-                {
-                    UserId = user.Id,
-                    CourseId = enrollmentDto.CourseId,
-                    Status = enrollmentDto.Status,
-                    ProgressPercentage = 0
-                });
-            }
-        }
+            Console.WriteLine($"Aluno encontrado: {user.UserName}");
 
-        Console.WriteLine("===== ANTES DO SAVECHANGES =====");
-
-        foreach (var e in user.CourseEnrollments)
-        {
-            Console.WriteLine($"UserId: {e.UserId} | CourseId: {e.CourseId} | Status: {e.Status}");
-        }
-
-        Console.WriteLine("===== CHANGE TRACKER =====");
-
-        foreach (var item in _context.ChangeTracker.Entries<CourseEnrollment>())
-        {
             Console.WriteLine(
-                $"Estado: {item.State} | UserId: {item.Entity.UserId} | CourseId: {item.Entity.CourseId}");
+                $"Quantidade de matrículas: {user.CourseEnrollments.Count}"
+            );
+
+            foreach (var enrollmentItem in user.CourseEnrollments)
+            {
+                Console.WriteLine(
+                    $"Matrícula => Id: {enrollmentItem.Id}, " +
+                    $"UserId: {enrollmentItem.UserId}, " +
+                    $"CourseId: {enrollmentItem.CourseId}, " +
+                    $"Status: {enrollmentItem.Status}"
+                );
+            }
+
+            Console.WriteLine(
+                $"Procurando matrícula do curso atual: {dto.CurrentCourseId}"
+            );
+
+            /* var enrollment = user.CourseEnrollments
+                 .FirstOrDefault(e => e.CourseId == dto.CurrentCourseId);
+
+             if (enrollment == null)
+             {
+                 Console.WriteLine("MATRÍCULA NÃO ENCONTRADA.");
+                 return BadRequest("Matricula não encontrada");
+             }
+
+             Console.WriteLine(
+                 $"Matrícula encontrada: ID {enrollment.Id}"
+             );
+
+             Console.WriteLine(
+                 $"Alterando curso: {enrollment.CourseId} -> {dto.NewCourseId}"
+             );
+
+             user.UserName = dto.UserName;
+             user.UserEmail = dto.UserEmail;
+             user.PhoneNumber = dto.PhoneNumber;
+             user.BirthDate = dto.BirthDate;
+
+             enrollment.CourseId = dto.NewCourseId;
+             enrollment.Status = dto.Status;
+
+             Console.WriteLine("Dados alterados em memória.");
+
+             await _context.SaveChangesAsync();
+
+             Console.WriteLine("SaveChangesAsync executado com sucesso.");
+
+             Console.WriteLine("========== UPDATE FINALIZADO ==========");
+
+             return Ok();*/
+            var enrollment = user.CourseEnrollments
+     .FirstOrDefault(e => e.CourseId == dto.CurrentCourseId);
+
+            if (enrollment == null)
+                return BadRequest("Matrícula não encontrada.");
+
+            if (dto.CurrentCourseId == dto.NewCourseId)
+            {
+                enrollment.Status = dto.Status;
+
+                await _context.SaveChangesAsync();
+
+                return Ok();
+            }
+
+            // Verifica se o aluno já está matriculado no novo curso
+            var alreadyEnrolled = await _context.CourseEnrollments
+                .AnyAsync(e =>
+                    e.UserId == id &&
+                    e.CourseId == dto.NewCourseId);
+
+            if (alreadyEnrolled)
+                return BadRequest("O aluno já está matriculado neste curso.");
+
+            // Remove a matrícula atual
+            _context.CourseEnrollments.Remove(enrollment);
+
+            // Cria a nova matrícula
+            var newEnrollment = new CourseEnrollment
+            {
+                UserId = id,
+                CourseId = dto.NewCourseId,
+                Status = dto.Status,
+                ProgressPercentage = 0,
+                CompletedLessons = 0,
+                TotalLessons = 0,
+                StartDate = DateTime.UtcNow
+            };
+
+            _context.CourseEnrollments.Add(newEnrollment);
+
+            await _context.SaveChangesAsync();
+
+            return Ok();
         }
+        catch (Exception ex)
+        {
+            Console.WriteLine("========== ERRO NO UPDATE ==========");
 
-        await _context.SaveChangesAsync();
+            Console.WriteLine($"Tipo: {ex.GetType().FullName}");
+            Console.WriteLine($"Mensagem: {ex.Message}");
+            Console.WriteLine($"StackTrace: {ex.StackTrace}");
 
-        await _context.SaveChangesAsync();
+            if (ex.InnerException != null)
+            {
+                Console.WriteLine("----- INNER EXCEPTION -----");
+                Console.WriteLine(ex.InnerException.Message);
+            }
 
-        var updatedUser = await _context.Users
-            .Include(u => u.CourseEnrollments)
-                .ThenInclude(e => e.Course)
-                    .ThenInclude(c => c.Teacher)
-            .FirstOrDefaultAsync(u => u.Id == id);
-
-        var userDto = _mapper.Map<UserReadDto>(updatedUser);
-
-        return Ok(userDto);
+            return StatusCode(500, "Erro interno ao atualizar aluno.");
+        }
     }
-
 
     [HttpPut("pix/pay/{paymentId}")]
     public async Task<IActionResult> MarkAsPaid(int paymentId)
@@ -257,7 +318,7 @@ public class UsersController : ControllerBase
         return Ok();
     }
 
-    
+
     [HttpDelete("{id}")]
     public ActionResult Delete(int id)
     {

@@ -80,23 +80,96 @@ namespace EducationalPlataform.Controllers
             });
         }
 
-        
+
         // Cria 
-        
+
 
         [HttpPost]
+        [RequestSizeLimit(10 * 1024 * 1024)] // 10 MB
         public async Task<ActionResult<LessonReadDto>> Create(
-            [FromBody] LessonCreateDto dto)
+    [FromForm] LessonCreateDto dto,
+    IFormFile? material)
         {
-            var teacherId = int.Parse(
-                User.FindFirstValue(ClaimTypes.NameIdentifier)!);
+            var teacherIdClaim = User.FindFirstValue(ClaimTypes.NameIdentifier);
+
+            if (!int.TryParse(teacherIdClaim, out var teacherId))
+                return Unauthorized("Professor não identificado.");
+
+            // Verifica se o módulo existe
+            var module = await _context.CourseModules
+                .Include(m => m.Course)
+                .FirstOrDefaultAsync(m => m.Id == dto.CourseModuleId);
+
+            if (module == null)
+                return BadRequest("Módulo não encontrado.");
+
+            // Verifica se o usuário autenticado é o professor responsável pelo curso
+            if (module.Course.TeacherId != teacherId)
+                return Forbid();
+
+            string? materialUrl = null;
+
+            // Upload do material
+            if (material != null)
+            {
+                var extension = Path.GetExtension(material.FileName)
+                    .ToLowerInvariant();
+
+                var allowedExtensions = new[]
+                {
+            ".pdf",
+            ".txt"
+        };
+
+                if (!allowedExtensions.Contains(extension))
+                {
+                    return BadRequest(
+                        "Formato de arquivo não permitido. Envie apenas PDF ou TXT.");
+                }
+
+                if (material.Length == 0)
+                    return BadRequest("O arquivo enviado está vazio.");
+
+                const long maxFileSize = 10 * 1024 * 1024;
+
+                if (material.Length > maxFileSize)
+                {
+                    return BadRequest(
+                        "O arquivo não pode ultrapassar 10 MB.");
+                }
+
+                var uploadsFolder = Path.Combine(
+                    Directory.GetCurrentDirectory(),
+                    "wwwroot",
+                    "uploads",
+                    "lessons");
+
+                Directory.CreateDirectory(uploadsFolder);
+
+                var uniqueFileName =
+                    $"{Guid.NewGuid():N}{extension}";
+
+                var filePath = Path.Combine(
+                    uploadsFolder,
+                    uniqueFileName);
+
+                await using (var stream = new FileStream(
+                    filePath,
+                    FileMode.Create))
+                {
+                    await material.CopyToAsync(stream);
+                }
+
+                materialUrl =
+                    $"/uploads/lessons/{uniqueFileName}";
+            }
 
             var lesson = new Lesson
             {
                 Title = dto.Title,
                 Description = dto.Description,
                 VideoUrl = dto.VideoUrl,
-                PdfUrl = dto.PdfUrl,
+                PdfUrl = materialUrl,
                 DurationSeconds = dto.DurationSeconds,
                 Order = dto.Order,
                 IsPublished = dto.IsPublished,
@@ -118,9 +191,9 @@ namespace EducationalPlataform.Controllers
                 _mapper.Map<LessonReadDto>(lesson));
         }
 
-        
+
         // Altera 
-        
+
 
         [HttpPut("{id}")]
         public async Task<IActionResult> Update(
