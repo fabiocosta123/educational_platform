@@ -87,15 +87,12 @@ namespace EducationalPlataform.Controllers
         [HttpPost]
         [RequestSizeLimit(10 * 1024 * 1024)] // 10 MB
         public async Task<ActionResult<LessonReadDto>> Create(
-    [FromForm] LessonCreateDto dto,
-    IFormFile? material)
+        [FromForm] LessonCreateDto dto,
+        IFormFile? material)
         {
-            var teacherIdClaim = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            
+            // 1. Localiza o módulo e o curso          
 
-            if (!int.TryParse(teacherIdClaim, out var teacherId))
-                return Unauthorized("Professor não identificado.");
-
-            // Verifica se o módulo existe
             var module = await _context.CourseModules
                 .Include(m => m.Course)
                 .FirstOrDefaultAsync(m => m.Id == dto.CourseModuleId);
@@ -103,16 +100,57 @@ namespace EducationalPlataform.Controllers
             if (module == null)
                 return BadRequest("Módulo não encontrado.");
 
-            // Verifica se o usuário autenticado é o professor responsável pelo curso
-            if (module.Course.TeacherId != teacherId)
-                return Forbid();
+            // 2.professor responsável            
+
+            if (module.Course.TeacherId == null)
+                return BadRequest(
+                    "O curso não possui um professor associado.");
+
+            var courseTeacherId = module.Course.TeacherId.Value;
+
+           
+            // 3. Identifica o usuário autenticado            
+
+            var userRole = User.FindFirstValue(ClaimTypes.Role);
+
+            int teacherId;
+            
+            // 4. Coordinator           
+            // O Coordinator pode criar aulas para qualquer curso,
+            // mas a aula continuará pertencendo ao professor do curso.
+
+            if (userRole == "Coordinator")
+            {
+                teacherId = courseTeacherId;
+            }
+           
+            // 5. Teacher           
+            // O professor só pode criar aulas nos próprios cursos.
+
+            else
+            {
+                var teacherIdClaim =
+                    User.FindFirstValue(ClaimTypes.NameIdentifier);
+
+                if (!int.TryParse(teacherIdClaim, out teacherId))
+                {
+                    return Unauthorized(
+                        "Professor não identificado.");
+                }
+
+                if (teacherId != courseTeacherId)
+                    return Forbid();
+            }
+
+            
+            // 6. Upload do material           
 
             string? materialUrl = null;
 
-            // Upload do material
             if (material != null)
             {
-                var extension = Path.GetExtension(material.FileName)
+                var extension = Path
+                    .GetExtension(material.FileName)
                     .ToLowerInvariant();
 
                 var allowedExtensions = new[]
@@ -124,11 +162,13 @@ namespace EducationalPlataform.Controllers
                 if (!allowedExtensions.Contains(extension))
                 {
                     return BadRequest(
-                        "Formato de arquivo não permitido. Envie apenas PDF ou TXT.");
+                        "Formato de arquivo não permitido. " +
+                        "Envie apenas PDF ou TXT.");
                 }
 
                 if (material.Length == 0)
-                    return BadRequest("O arquivo enviado está vazio.");
+                    return BadRequest(
+                        "O arquivo enviado está vazio.");
 
                 const long maxFileSize = 10 * 1024 * 1024;
 
@@ -164,6 +204,8 @@ namespace EducationalPlataform.Controllers
                     $"/uploads/lessons/{uniqueFileName}";
             }
 
+            
+            // 7. Criação da aula            
             var lesson = new Lesson
             {
                 Title = dto.Title,
@@ -174,6 +216,8 @@ namespace EducationalPlataform.Controllers
                 Order = dto.Order,
                 IsPublished = dto.IsPublished,
                 CourseModuleId = dto.CourseModuleId,
+
+               
                 TeacherId = teacherId
             };
 
@@ -181,9 +225,17 @@ namespace EducationalPlataform.Controllers
 
             await _context.SaveChangesAsync();
 
+            
+            // 8. Carrega o professor para dto 
+            
+
             await _context.Entry(lesson)
                 .Reference(l => l.Teacher)
                 .LoadAsync();
+
+            
+            // 9. Retorna a aula criada
+            
 
             return CreatedAtAction(
                 nameof(GetById),
