@@ -8,7 +8,7 @@
 
         public string VideoUrl { get; set; } = string.Empty;
 
-        public string? PdfUrl { get; set; }
+        //public string? PdfUrl { get; set; }
 
         public int Order { get; set; }
 

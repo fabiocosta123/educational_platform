@@ -99,8 +99,10 @@ namespace EducationalPlataform.Controllers
             if (course == null)
                 return NotFound("Curso não encontrado.");
 
-            // Somente o professor responsável pelo curso pode criar módulos.
-            if (course.TeacherId != userId)
+            
+            var userRole = User.FindFirstValue(ClaimTypes.Role);
+
+            if (userRole != "Coordinator" && course.TeacherId != userId)
             {
                 return Forbid();
             }
@@ -139,8 +141,10 @@ namespace EducationalPlataform.Controllers
             if (module == null)
                 return NotFound("Módulo não encontrado.");
 
-            // Somente o professor responsável pelo curso pode editar.
-            if (module.Course.TeacherId != userId)
+            
+            var userRole = User.FindFirstValue(ClaimTypes.Role);
+
+            if (userRole != "Coordinator" && module.Course.TeacherId != userId)
             {
                 return Forbid();
             }
@@ -176,8 +180,9 @@ namespace EducationalPlataform.Controllers
             if (module == null)
                 return NotFound("Módulo não encontrado.");
 
-            // Somente o professor responsável pelo curso pode excluir.
-            if (module.Course.TeacherId != userId)
+            var userRole = User.FindFirstValue(ClaimTypes.Role);
+
+            if (userRole != "Coordinator" && module.Course.TeacherId != userId)
             {
                 return Forbid();
             }

@@ -252,16 +252,39 @@ namespace EducationalPlataform.Controllers
             int id,
             [FromBody] LessonUpdateDto dto)
         {
+
+            if (!TryGetUserId(out var userId))
+                return Unauthorized("Usuário não autenticado.");
+
+
             var lesson = await _context.Lessons
+                .Include(l => l.CourseModule)
+                    .ThenInclude(c => c.Course)
                 .FirstOrDefaultAsync(l => l.Id == id);
 
             if (lesson == null)
-                return NotFound();
+                return NotFound("Aula não encontrada.");
+
+            var userRole = User.FindFirstValue(ClaimTypes.Role);
+
+            if (userRole != "Coordinator" && lesson.CourseModule.Course.TeacherId != userId)
+                return Forbid("Você não tem permissão para alterar esta aula.");
+
+
+            var module = await _context.CourseModules
+                .Include(m => m.Course)
+                .FirstOrDefaultAsync(m => m.Id == dto.CourseModuleId);
+
+            if (module == null)
+                return NotFound("Módulo não encontrado.");
+
+            if (userRole != "Coordinator" && module.Course.TeacherId != userId)
+                return Forbid("Você não tem permissão para mover a aula para este módulo.");
 
             lesson.Title = dto.Title;
             lesson.Description = dto.Description;
             lesson.VideoUrl = dto.VideoUrl;
-            lesson.PdfUrl = dto.PdfUrl;
+            //lesson.PdfUrl = dto.PdfUrl;
             lesson.DurationSeconds = dto.DurationSeconds;
             lesson.Order = dto.Order;
             lesson.IsPublished = dto.IsPublished;
@@ -272,23 +295,75 @@ namespace EducationalPlataform.Controllers
             return NoContent();
         }
 
-        
+
         // Excluir 
-        
+
 
         [HttpDelete("{id}")]
         public async Task<IActionResult> Delete(int id)
         {
-            var lesson = await _context.Lessons.FindAsync(id);
+
+            if (!TryGetUserId(out var userId))
+                return Unauthorized("Usuário não autenticado.");
+
+            var lesson = await _context.Lessons
+                .Include(l => l.CourseModule)
+                    .ThenInclude(m => m.Course)
+                .FirstOrDefaultAsync(l => l.Id == id);
 
             if (lesson == null)
-                return NotFound();
+                return NotFound("Aula não encontrada.");
+
+            var userRole = User.FindFirstValue(ClaimTypes.Role);
+
+            if (userRole != "Coordinator" && lesson.CourseModule.Course.TeacherId != userId)
+                return Forbid("Você não tem permissão para excluir esta aula.");
+
+            var pdfUrl = lesson.PdfUrl;
 
             _context.Lessons.Remove(lesson);
-
             await _context.SaveChangesAsync();
 
+            if (!string.IsNullOrWhiteSpace(lesson.PdfUrl))
+            {
+                var relativePath = lesson.PdfUrl
+                    .TrimStart('/')
+                    .Replace('/', Path.DirectorySeparatorChar);
+
+
+                var filePath = Path.Combine(
+                    Directory.GetCurrentDirectory(),
+                    "wwwroot",
+                    relativePath);
+
+                if (System.IO.File.Exists(filePath))
+                {
+                    try
+                    {
+                        System.IO.File.Delete(filePath);
+
+                    }
+                    catch (Exception ex)
+                    {
+                        return StatusCode(500, "Erro ao excluir o arquivo associado à aula.");
+                    }
+
+                }               
+
+                
+            }
             return NoContent();
+        }
+
+        private bool TryGetUserId(out int userId)
+        {
+            userId = 0;
+            var idClaim = User.FindFirstValue(ClaimTypes.NameIdentifier);
+
+            if (string.IsNullOrEmpty(idClaim))
+                return false;
+
+            return int.TryParse(idClaim, out userId);
         }
     }
 }
