@@ -266,44 +266,74 @@ namespace EducationalPlataform.Controllers
         public async Task<IActionResult> ConfirmPixPayment(int paymentId)
         {
             await using var transaction = await _context.Database.BeginTransactionAsync();
+
             try
             {
-                var payment = await _context.Payments.FindAsync(paymentId);
-                if (payment == null) return NotFound();
+                var payment = await _context.Payments
+                    .FirstOrDefaultAsync(p => p.Id == paymentId);
+
+                if (payment == null)
+                    return NotFound("Pagamento não encontrado.");
 
                 if (payment.Status == PaymentStatus.Paid)
                     return BadRequest("Pagamento já confirmado.");
 
-                // Atualiza status e data
+                // Atualiza pagamento
                 payment.Status = PaymentStatus.Paid;
                 payment.PaidAt = DateTime.Now;
 
-                // Cria matrícula
-                var enrollment = new CourseEnrollment
+                // Procura matrícula existente
+                var enrollment = await _context.CourseEnrollments
+                    .FirstOrDefaultAsync(e =>
+                        e.UserId == payment.UserId &&
+                        e.CourseId == payment.CourseId);
+
+                if (enrollment == null)
                 {
-                    UserId = payment.UserId,
-                    CourseId = payment.CourseId,
-                    Status = "Active",
-                    ProgressPercentage = 0
-                };
-                _context.CourseEnrollments.Add(enrollment);
+                    // Cria somente se ainda não existir
+                    enrollment = new CourseEnrollment
+                    {
+                        UserId = payment.UserId,
+                        CourseId = payment.CourseId,
+                        Status = "Active",
+                        ProgressPercentage = 0
+                    };
 
-                // Registra auditoria
-                RegisterAudit(payment.Id, "Confirmed", $"Payment {payment.Id} confirmed manually");
+                    _context.CourseEnrollments.Add(enrollment);
+                }
+                else
+                {
+                    // Reutiliza a matrícula existente
+                    enrollment.Status = "Active";
 
-                // Salva tudo de uma vez
+                    if (enrollment.ProgressPercentage < 0)
+                        enrollment.ProgressPercentage = 0;
+                }
+
+                RegisterAudit(
+                    payment.Id,
+                    "Confirmed",
+                    $"Payment {payment.Id} confirmed manually");
+
                 await _context.SaveChangesAsync();
 
-                // Confirma transação
                 await transaction.CommitAsync();
 
-                return Ok("Payment confirmed and course unlocked.");
+                return Ok(new
+                {
+                    message = "Payment confirmed and course unlocked.",
+                    paymentId = payment.Id,
+                    enrollmentId = enrollment.Id,
+                    enrollmentStatus = enrollment.Status
+                });
             }
             catch (Exception ex)
             {
-                // Reverte caso algo dê errado
                 await transaction.RollbackAsync();
-                return StatusCode(500, $"Erro ao confirmar pagamento: {ex.Message}");
+
+                return StatusCode(
+                    500,
+                    $"Erro ao confirmar pagamento: {ex.Message}");
             }
         }
 

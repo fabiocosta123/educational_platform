@@ -68,15 +68,35 @@ namespace EducationalPlataform.Controllers
 
 
         [HttpPost]
-        public ActionResult<CourseEnrollmentReadDto> Create([FromBody] CourseEnrollmentCreateDto dto)
+        public async Task<ActionResult<CourseEnrollmentReadDto>> Create(
+        [FromBody] CourseEnrollmentCreateDto dto)
         {
+            var existingEnrollment = await _context.CourseEnrollments
+                .FirstOrDefaultAsync(e =>
+                    e.UserId == dto.UserId &&
+                    e.CourseId == dto.CourseId);
+
+            if (existingEnrollment != null)
+            {
+                return Conflict(new
+                {
+                    message = "O aluno já está matriculado neste curso.",
+                    enrollmentId = existingEnrollment.Id,
+                    status = existingEnrollment.Status
+                });
+            }
+
             var enrollment = _mapper.Map<CourseEnrollment>(dto);
 
             _context.CourseEnrollments.Add(enrollment);
-            _context.SaveChanges();
+            await _context.SaveChangesAsync();
 
             var enrollmentReadDto = _mapper.Map<CourseEnrollmentReadDto>(enrollment);
-            return CreatedAtAction(nameof(GetById), new { id = enrollment.Id }, enrollmentReadDto);
+
+            return CreatedAtAction(
+                nameof(GetById),
+                new { id = enrollment.Id },
+                enrollmentReadDto);
         }
 
         [HttpPut("{id}")]
