@@ -131,5 +131,142 @@ namespace EducationalPlataform.Controllers.AuthController.Register
             var token = tokenHandler.CreateToken(tokenDescriptor);
             return tokenHandler.WriteToken(token);
         }
+
+
+
+        [HttpPost("register-course/{courseId:int}")]
+        [AllowAnonymous]
+        public async Task<IActionResult> RegisterCourse(
+            int courseId,
+            [FromBody] PublicCourseRegisterDto dto)
+        {
+            if (!ModelState.IsValid)
+                return BadRequest(ModelState);
+
+            // 1. Verifica se o curso existe
+
+            var course = await _context.Courses
+                .Include(c => c.Modules)
+                    .ThenInclude(m => m.Lessons)
+                .FirstOrDefaultAsync(c => c.Id == courseId);
+
+
+
+            if (course == null)
+            {
+                return NotFound(new
+                {
+                    message = "Curso não encontrado."
+                });
+            }
+
+            // 2. Verifica usuário pelo nome
+            var usernameExists = await _context.Users
+                .AnyAsync(u => u.UserName == dto.UserName);
+
+            if (usernameExists)
+            {
+                return Conflict(new
+                {
+                    message = "Este nome de usuário já está cadastrado."
+                });
+            }
+
+            // 3. Verifica e-mail
+            var emailExists = await _context.Users
+                .AnyAsync(u => u.UserEmail == dto.UserEmail);
+
+            if (emailExists)
+            {
+                return Conflict(new
+                {
+                    message = "Este e-mail já está cadastrado."
+                });
+            }
+
+            // 4. Verifica CPF
+            var cpfExists = await _context.Users
+                .AnyAsync(u => u.CPF == dto.CPF);
+
+            if (cpfExists)
+            {
+                return Conflict(new
+                {
+                    message = "Este CPF já está cadastrado."
+                });
+            }
+
+            // 5. Cria usuário
+            var user = new User
+            {
+                UserName = dto.UserName,
+                UserEmail = dto.UserEmail,
+                CPF = dto.CPF,
+                PhoneNumber = dto.PhoneNumber,
+                BirthDate = dto.BirthDate,
+
+                // IMPORTANTE:
+                // Cadastro público sempre cria aluno.
+                Profile = UserProfile.Student,
+
+                Role = UserProfile.Student.ToString()
+            };
+
+            // 6. Gera hash da senha
+            user.PasswordHash = _passwordHasher.HashPassword(
+                user,
+                dto.Password
+            );
+
+            await using var transaction = await _context.Database.BeginTransactionAsync();
+
+            try
+            {
+                // 7. Salva usuário
+                _context.Users.Add(user);
+                await _context.SaveChangesAsync();
+
+                // 8. Cria matrícula como Pending
+                var enrollment = new CourseEnrollment(
+                    user.Id,
+                    courseId
+                );
+
+                enrollment.Status = "Pending";
+                enrollment.ProgressPercentage = 0;
+                enrollment.CompletedLessons = 0;
+                enrollment.TotalLessons = course.Modules
+                    .SelectMany(m => m.Lessons)
+                    .Count();
+
+                _context.CourseEnrollments.Add(enrollment);
+
+                await _context.SaveChangesAsync();
+
+                // 9. Confirma transação
+                await transaction.CommitAsync();
+
+                return Ok(new
+                {
+                    message = "Cadastro realizado com sucesso.",
+                    userId = user.Id,
+                    enrollmentId = enrollment.Id,
+                    courseId = course.Id,
+                    courseTitle = course.Title,
+                    enrollmentStatus = enrollment.Status
+                });
+            }
+            catch
+            {
+                await transaction.RollbackAsync();
+
+                return StatusCode(500, new
+                {
+                    message = "Não foi possível realizar o cadastro."
+                });
+            }
+        }
+
+
     }
 }
