@@ -20,6 +20,11 @@ namespace EducationalPlataform.Data
         public DbSet<CourseModule> CourseModules => Set<CourseModule>();
         public DbSet<LessonProgress> LessonProgresses => Set<LessonProgress>();
 
+        public DbSet<ForumQuestion> ForumQuestions => Set<ForumQuestion>();       
+        public DbSet<Announcement> Announcements => Set<Announcement>();
+        public DbSet<ForumReply> ForumReplies => Set<ForumReply>();
+
+
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             base.OnModelCreating(modelBuilder);
@@ -30,6 +35,8 @@ namespace EducationalPlataform.Data
             ConfigureLessonProgress(modelBuilder);
             ConfigurePayment(modelBuilder);
             ConfigurePaymentAudit(modelBuilder);
+            ConfigureForum(modelBuilder);
+            ConfigureAnnouncement(modelBuilder);
         }
 
         private static void ConfigureLesson(ModelBuilder modelBuilder)
@@ -180,6 +187,73 @@ namespace EducationalPlataform.Data
                 .WithMany(p => p.Audits)
                 .HasForeignKey(a => a.PaymentId)
                 .OnDelete(DeleteBehavior.Cascade);
+        }
+
+        private static void ConfigureForum(ModelBuilder modelBuilder)
+        {
+            modelBuilder.Entity<ForumQuestion>()
+                .HasOne(q => q.User)
+                .WithMany()
+                .HasForeignKey(q => q.UserId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            modelBuilder.Entity<ForumQuestion>()
+                .HasOne(q => q.Course)
+                .WithMany()
+                .HasForeignKey(q => q.CourseId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            modelBuilder.Entity<ForumQuestion>()
+                .HasOne(q => q.Lesson)
+                .WithMany()
+                .HasForeignKey(q => q.LessonId)
+                .OnDelete(DeleteBehavior.NoAction);
+
+            modelBuilder.Entity<ForumReply>()
+                .HasOne(r => r.ForumQuestion)
+                .WithMany(q => q.Replies)
+                .HasForeignKey(r => r.ForumQuestionId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            modelBuilder.Entity<ForumReply>()
+                .HasOne(r => r.User)
+                .WithMany()
+                .HasForeignKey(r => r.UserId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            // Discussion threads and posts
+            modelBuilder.Entity<DiscussionThread>()
+                .HasOne(t => t.CreatedByUser)
+                .WithMany(u => u.DiscussionThreadsCreated)
+                .HasForeignKey(t => t.CreatedByUserId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            modelBuilder.Entity<DiscussionPost>()
+                .HasOne(p => p.User)
+                .WithMany(u => u.DiscussionPosts)
+                .HasForeignKey(p => p.UserId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            modelBuilder.Entity<DiscussionPost>()
+                .HasOne(p => p.DiscussionThread)
+                .WithMany(t => t.Posts)
+                .HasForeignKey(p => p.DiscussionThreadId)
+                .OnDelete(DeleteBehavior.Cascade);
+        }
+
+        private static void ConfigureAnnouncement(ModelBuilder modelBuilder)
+        {
+            modelBuilder.Entity<Announcement>()
+                .HasOne(a => a.Author)
+                .WithMany()
+                .HasForeignKey(a => a.AuthorId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            modelBuilder.Entity<Announcement>()
+                .HasOne(a => a.Course)
+                .WithMany()
+                .HasForeignKey(a => a.CourseId)
+                .OnDelete(DeleteBehavior.SetNull);
         }
     }
 }

@@ -4,6 +4,7 @@ using EducationalPlataform.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
@@ -11,9 +12,11 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace EducationalPlataform.Migrations
 {
     [DbContext(typeof(EducationalPlataformContext))]
-    partial class EducationalPlataformContextModelSnapshot : ModelSnapshot
+    [Migration("20260919035457_AddForumAndAnnouncement")]
+    partial class AddForumAndAnnouncement
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -250,6 +253,39 @@ namespace EducationalPlataform.Migrations
                     b.HasIndex("LessonId");
 
                     b.ToTable("DiscussionThread");
+                });
+
+            modelBuilder.Entity("EducationalPlataform.Entities.ForumAnswer", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("Content")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("ForumQuestionId")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("UserId")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ForumQuestionId");
+
+                    b.HasIndex("UserId");
+
+                    b.ToTable("ForumAnswers");
                 });
 
             modelBuilder.Entity("EducationalPlataform.Entities.ForumQuestion", b =>
@@ -659,6 +695,25 @@ namespace EducationalPlataform.Migrations
                     b.Navigation("CreatedByUser");
 
                     b.Navigation("Lesson");
+                });
+
+            modelBuilder.Entity("EducationalPlataform.Entities.ForumAnswer", b =>
+                {
+                    b.HasOne("EducationalPlataform.Entities.ForumQuestion", "ForumQuestion")
+                        .WithMany()
+                        .HasForeignKey("ForumQuestionId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("EducationalPlataform.Entities.User", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("ForumQuestion");
+
+                    b.Navigation("User");
                 });
 
             modelBuilder.Entity("EducationalPlataform.Entities.ForumQuestion", b =>

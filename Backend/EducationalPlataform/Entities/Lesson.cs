@@ -36,6 +36,7 @@ namespace EducationalPlataform.Entities
         public User? Teacher { get; set; } = null!;
 
         public ICollection<LessonProgress> Progresses { get; set; } = new List<LessonProgress>();
+        public ICollection<DiscussionThread> DiscussionThreads { get; set; } = new List<DiscussionThread>();
 
         // constructors
         public Lesson()

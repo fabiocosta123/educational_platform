@@ -7,21 +7,21 @@ namespace EducationalPlataform.Entities
     public class User
     {
         public int Id { get; set; }
-       
+
         public string? UserName { get; set; }
 
         [EmailAddress(ErrorMessage = "Email inválido.")]
         public string? UserEmail { get; set; }
 
-        
+
         public string? PasswordHash { get; set; }
-       
+
         public string? CPF { get; set; }
 
-       
+
         public DateTime BirthDate { get; set; }
 
-        
+
         public UserProfile Profile { get; set; }
 
         public string Role { get; set; }
@@ -30,7 +30,7 @@ namespace EducationalPlataform.Entities
 
         // relacionships
         public ICollection<Course> CoursesCreated { get; set; } = new List<Course>();
-        
+
 
         public ICollection<Course> CoursesTaught { get; set; } = new List<Course>();
 
@@ -39,6 +39,12 @@ namespace EducationalPlataform.Entities
         public ICollection<CourseEnrollment> CourseEnrollments { get; set; } = new List<CourseEnrollment>();
 
         public ICollection<Payment> Payments { get; set; }
+
+        public ICollection<DiscussionThread> DiscussionThreadsCreated { get; set; } = new List<DiscussionThread>();
+
+        public ICollection<DiscussionPost> DiscussionPosts { get; set; } = new List<DiscussionPost>();
+
+        public ICollection<Announcement> AnnouncementsCreated { get; set; } = new List<Announcement>();
 
 
 
@@ -53,7 +59,7 @@ namespace EducationalPlataform.Entities
             PasswordHash = passwordHash;
             CPF = cpf;
             BirthDate = birthDate;
-            
+
             if (Enum.TryParse<UserProfile>(profile, true, out var parsedProfile))
             {
                 Profile = parsedProfile;
