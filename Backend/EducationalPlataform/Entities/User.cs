@@ -40,10 +40,6 @@ namespace EducationalPlataform.Entities
 
         public ICollection<Payment> Payments { get; set; }
 
-        public ICollection<DiscussionThread> DiscussionThreadsCreated { get; set; } = new List<DiscussionThread>();
-
-        public ICollection<DiscussionPost> DiscussionPosts { get; set; } = new List<DiscussionPost>();
-
         public ICollection<Announcement> AnnouncementsCreated { get; set; } = new List<Announcement>();
 
 
