@@ -27,6 +27,9 @@ namespace EducationalPlataform.Entities
         public ICollection<CourseModule> Modules { get; set; } = new List<CourseModule>();
 
         public ICollection<Payment> Payments { get; set; }
+        public ICollection<DiscussionThread> DiscussionThreads { get; set; } = new List<DiscussionThread>();
+
+        public ICollection<Announcement> Announcements { get; set; } = new List<Announcement>();
 
 
 
