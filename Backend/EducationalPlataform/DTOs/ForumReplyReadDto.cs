@@ -1,5 +1,4 @@
-﻿using System.ComponentModel.DataAnnotations;
-
+﻿
 namespace EducationalPlataform.DTOs
 {
     public class ForumReplyReadDto
