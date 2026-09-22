@@ -3,7 +3,9 @@ using EducationalPlataform.Data;
 using EducationalPlataform.DTOs;
 using EducationalPlataform.Entities;
 using EducationalPlataform.Models.Enums;
+using EducationalPlataform.Validation;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using System.Security.Claims;
@@ -16,11 +18,16 @@ public class UsersController : ControllerBase
 {
     private readonly EducationalPlataformContext _context;
     private readonly IMapper _mapper;
+    private readonly IPasswordHasher<User> _passwordHasher;
 
-    public UsersController(EducationalPlataformContext context, IMapper mapper)
+    public UsersController(
+        EducationalPlataformContext context,
+        IMapper mapper,
+        IPasswordHasher<User> passwordHasher)
     {
         _context = context;
         _mapper = mapper;
+        _passwordHasher = passwordHasher;
     }
 
     [HttpGet]
@@ -111,15 +118,24 @@ public class UsersController : ControllerBase
         if (string.IsNullOrWhiteSpace(dto.UserName))
             return BadRequest("Nome é obrigatório.");
 
+        if (string.IsNullOrWhiteSpace(dto.Password) || dto.Password.Length < 6)
+            return BadRequest("Senha é obrigatória e deve ter no mínimo 6 caracteres.");
+
+        if (!CpfValidator.IsValid(dto.CPF))
+            return BadRequest("CPF inválido.");
+
         var student = new User
         {
             UserName = dto.UserName,
             UserEmail = dto.UserEmail,
-            CPF = dto.CPF,
+            CPF = CpfValidator.Format(dto.CPF),
+            PhoneNumber = dto.PhoneNumber,
             BirthDate = dto.BirthDate,
             Profile = UserProfile.Student,
             Role = "Student"
         };
+
+        student.PasswordHash = _passwordHasher.HashPassword(student, dto.Password);
 
         _context.Users.Add(student);
         _context.SaveChanges();
@@ -186,6 +202,16 @@ public class UsersController : ControllerBase
                 Console.WriteLine("Aluno não encontrado.");
                 return NotFound();
             }
+
+            if (!string.IsNullOrWhiteSpace(dto.Password))
+            {
+                user.PasswordHash = _passwordHasher.HashPassword(user, dto.Password);
+            }
+
+            user.UserName = dto.UserName;
+            user.UserEmail = dto.UserEmail;
+            user.PhoneNumber = dto.PhoneNumber;
+            user.BirthDate = dto.BirthDate;
 
             Console.WriteLine($"Aluno encontrado: {user.UserName}");
 

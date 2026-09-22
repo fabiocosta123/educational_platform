@@ -2,6 +2,7 @@
 using EducationalPlataform.DTOs;
 using EducationalPlataform.Entities;
 using EducationalPlataform.Models.Enums;
+using EducationalPlataform.Validation;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
@@ -66,6 +67,14 @@ namespace EducationalPlataform.Controllers.AuthController.Register
             var user = await _context.Users.FirstOrDefaultAsync(u => u.UserName == dto.UserName || u.UserEmail == dto.UserName);
             if (user == null) return Unauthorized(new { message = "Invalid credentials" });
 
+            if (string.IsNullOrWhiteSpace(user.PasswordHash))
+            {
+                return Unauthorized(new
+                {
+                    message = "Esta conta ainda não possui senha. Defina uma senha no cadastro do aluno."
+                });
+            }
+
             var result = _passwordHasher.VerifyHashedPassword(user, user.PasswordHash, dto.Password);
             if (result == PasswordVerificationResult.Failed) return Unauthorized(new { message = "Invalid credentials" });
 
@@ -108,9 +117,11 @@ namespace EducationalPlataform.Controllers.AuthController.Register
             var key = Encoding.UTF8.GetBytes(_configuration["Jwt:Key"]);
             var now = DateTime.UtcNow;
 
+            var displayName = user.UserName ?? user.UserEmail ?? user.Id.ToString();
+
             var claims = new[]
             {
-                new Claim(ClaimTypes.Name, user.UserName),
+                new Claim(ClaimTypes.Name, displayName),
                 new Claim(ClaimTypes.Role, user.Profile.ToString()),
                 new Claim(ClaimTypes.NameIdentifier, user.Id.ToString()),
                 new Claim("profile", ((int)user.Profile).ToString())
@@ -143,14 +154,15 @@ namespace EducationalPlataform.Controllers.AuthController.Register
             if (!ModelState.IsValid)
                 return BadRequest(ModelState);
 
+            var formattedCpf = CpfValidator.Format(dto.CPF);
+            var email = dto.UserEmail.Trim();
+
             // 1. Verifica se o curso existe
 
             var course = await _context.Courses
                 .Include(c => c.Modules)
                     .ThenInclude(m => m.Lessons)
                 .FirstOrDefaultAsync(c => c.Id == courseId);
-
-
 
             if (course == null)
             {
@@ -160,39 +172,46 @@ namespace EducationalPlataform.Controllers.AuthController.Register
                 });
             }
 
-            // 2. Verifica usuário pelo nome
-            var usernameExists = await _context.Users
-                .AnyAsync(u => u.UserName == dto.UserName);
+            // 2. E-mail já cadastrado: orientar login em vez de criar outra conta
+            var existingByEmail = await _context.Users
+                .Include(u => u.CourseEnrollments)
+                .FirstOrDefaultAsync(u =>
+                    u.UserEmail != null &&
+                    u.UserEmail.ToLower() == email.ToLower());
 
-            if (usernameExists)
+            if (existingByEmail != null)
             {
+                var alreadyEnrolled = existingByEmail.CourseEnrollments
+                    .Any(e => e.CourseId == courseId);
+
+                if (alreadyEnrolled)
+                {
+                    return Conflict(new
+                    {
+                        message = "Você já está inscrito neste curso. Faça login para acessá-lo."
+                    });
+                }
+
                 return Conflict(new
                 {
-                    message = "Este nome de usuário já está cadastrado."
+                    message = "Este e-mail já possui uma conta. Faça login para se inscrever neste curso."
                 });
             }
 
-            // 3. Verifica e-mail
-            var emailExists = await _context.Users
-                .AnyAsync(u => u.UserEmail == dto.UserEmail);
+            // 3. CPF já cadastrado (com ou sem máscara)
+            var usersWithCpf = await _context.Users
+                .Where(u => u.CPF != null && u.CPF != "")
+                .Select(u => u.CPF)
+                .ToListAsync();
 
-            if (emailExists)
-            {
-                return Conflict(new
-                {
-                    message = "Este e-mail já está cadastrado."
-                });
-            }
-
-            // 4. Verifica CPF
-            var cpfExists = await _context.Users
-                .AnyAsync(u => u.CPF == dto.CPF);
+            var cpfExists = usersWithCpf.Any(stored =>
+                CpfValidator.SameCpf(stored, formattedCpf));
 
             if (cpfExists)
             {
                 return Conflict(new
                 {
-                    message = "Este CPF já está cadastrado."
+                    message = "Este CPF já está cadastrado. Faça login para se inscrever neste curso."
                 });
             }
 
@@ -201,7 +220,7 @@ namespace EducationalPlataform.Controllers.AuthController.Register
             {
                 UserName = dto.UserName,
                 UserEmail = dto.UserEmail,
-                CPF = dto.CPF,
+                CPF = formattedCpf,
                 PhoneNumber = dto.PhoneNumber,
                 BirthDate = dto.BirthDate,
 

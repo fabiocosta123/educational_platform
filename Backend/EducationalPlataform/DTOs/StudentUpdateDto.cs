@@ -1,5 +1,5 @@
-﻿using EducationalPlataform.Models.Enums;
-using EducationalPlataform.Profiles;
+﻿using System.ComponentModel.DataAnnotations;
+using EducationalPlataform.Models.Enums;
 
 public class StudentUpdateDto
 {
@@ -15,7 +15,8 @@ public class StudentUpdateDto
 
     public string Status { get; set; } = "Ativo";
 
-
+    [MinLength(6, ErrorMessage = "A senha deve ter no mínimo 6 caracteres.")]
+    public string? Password { get; set; }
 }
 
 
