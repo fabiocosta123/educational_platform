@@ -115,7 +115,7 @@ namespace EducationalPlataform.Data
                 
 
                 entity.Property(lp => lp.StartedAt)
-                    .HasDefaultValueSql("GETDATE()");
+                    .HasDefaultValueSql("CURRENT_TIMESTAMP");
 
                 entity.Property(lp => lp.LastWatchedSecond)
                     .HasDefaultValue(0);

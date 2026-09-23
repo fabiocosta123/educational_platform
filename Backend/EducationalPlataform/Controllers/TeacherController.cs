@@ -3,7 +3,9 @@ using EducationalPlataform.Data;
 using EducationalPlataform.DTOs;
 using EducationalPlataform.Entities;
 using EducationalPlataform.Models.Enums;
+using EducationalPlataform.Validation;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
@@ -16,11 +18,16 @@ namespace EducationalPlataform.Controllers
     {
         private readonly EducationalPlataformContext _context;
         private readonly IMapper _mapper;
+        private readonly IPasswordHasher<User> _passwordHasher;
 
-        public TeacherController(EducationalPlataformContext context, IMapper mapper)
+        public TeacherController(
+            EducationalPlataformContext context,
+            IMapper mapper,
+            IPasswordHasher<User> passwordHasher)
         {
             _context = context;
             _mapper = mapper;
+            _passwordHasher = passwordHasher;
         }
 
         [HttpGet("{teacherId}/dashboard")]
@@ -115,25 +122,83 @@ namespace EducationalPlataform.Controllers
         public async Task<ActionResult<TeacherReadDto>> CreateTeacher([FromBody] UserCreateDto dto)
         {
             if (string.IsNullOrWhiteSpace(dto.UserName))
-                return BadRequest("Nome do professor é obrigatório.");
+                return BadRequest(new { message = "Nome do professor é obrigatório." });
+
+            if (string.IsNullOrWhiteSpace(dto.Password) || dto.Password.Length < 6)
+                return BadRequest(new { message = "Senha é obrigatória e deve ter no mínimo 6 caracteres." });
+
+            if (!CpfValidator.IsValid(dto.CPF))
+                return BadRequest(new { message = "CPF inválido." });
 
             var teacher = new User
             {
-                UserName = dto.UserName,
-                UserEmail = dto.UserEmail,
-                PasswordHash = dto.Password,
+                UserName = dto.UserName.Trim(),
+                UserEmail = dto.UserEmail.Trim(),
                 PhoneNumber = dto.PhoneNumber,
                 Profile = UserProfile.Teacher,
                 BirthDate = dto.BirthDate,
-                CPF = dto.CPF,
-                Role = string.IsNullOrEmpty(dto.Role) ? "Teacher" : dto.Role
+                CPF = CpfValidator.Format(dto.CPF),
+                Role = "Teacher"
             };
+
+            teacher.PasswordHash = _passwordHasher.HashPassword(teacher, dto.Password);
 
             _context.Users.Add(teacher);
             await _context.SaveChangesAsync();
 
             var teacherDto = _mapper.Map<TeacherReadDto>(teacher);
-            return CreatedAtAction(nameof(GetTeachers), new { id = teacher.Id }, teacherDto);
+            return CreatedAtAction(
+                nameof(GetTeacherById),
+                new { teacherId = teacher.Id },
+                teacherDto);
+        }
+
+        [Authorize(Roles = "Coordinator")]
+        [HttpPut("{teacherId:int}")]
+        public async Task<ActionResult<TeacherReadDto>> UpdateTeacher(
+            int teacherId,
+            [FromBody] TeacherUpdateDto dto)
+        {
+            if (!ModelState.IsValid)
+                return BadRequest(ModelState);
+
+            var teacher = await _context.Users
+                .Include(u => u.CoursesTaught)
+                .FirstOrDefaultAsync(u =>
+                    u.Id == teacherId &&
+                    u.Profile == UserProfile.Teacher);
+
+            if (teacher == null)
+                return NotFound(new { message = "Professor não encontrado." });
+
+            if (string.IsNullOrWhiteSpace(dto.UserName))
+                return BadRequest(new { message = "Nome do professor é obrigatório." });
+
+            if (!string.IsNullOrWhiteSpace(dto.CPF) && !CpfValidator.IsValid(dto.CPF))
+                return BadRequest(new { message = "CPF inválido." });
+
+            if (!string.IsNullOrWhiteSpace(dto.Password) && dto.Password.Length < 6)
+                return BadRequest(new { message = "A senha deve ter no mínimo 6 caracteres." });
+
+            teacher.UserName = dto.UserName.Trim();
+            teacher.UserEmail = dto.UserEmail.Trim();
+            teacher.PhoneNumber = dto.PhoneNumber;
+            teacher.BirthDate = dto.BirthDate;
+
+            if (!string.IsNullOrWhiteSpace(dto.CPF))
+            {
+                teacher.CPF = CpfValidator.Format(dto.CPF);
+            }
+
+            if (!string.IsNullOrWhiteSpace(dto.Password))
+            {
+                teacher.PasswordHash = _passwordHasher.HashPassword(teacher, dto.Password);
+            }
+
+            await _context.SaveChangesAsync();
+
+            var teacherDto = _mapper.Map<TeacherReadDto>(teacher);
+            return Ok(teacherDto);
         }
     }
 }
