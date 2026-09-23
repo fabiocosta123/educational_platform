@@ -1,7 +1,11 @@
 <Solution>
+  <Folder Name="/Backend/">
+    <Project Path="Backend/EducationalPlataform/EducationalPlataform.csproj" />
+  </Folder>
+  <Folder Name="/Frontend/" />
   <Folder Name="/Itens de Solução/">
     <File Path=".gitignore" />
     <File Path="README.md" />
   </Folder>
-  <Project Path="EducationalPlataform/EducationalPlataform.csproj" />
+  <Project Path="EducationalPlataform.Tests/EducationalPlataform.Tests.csproj" Id="91f428b3-9dbb-40ed-adfa-14a6e53eb283" />
 </Solution>
