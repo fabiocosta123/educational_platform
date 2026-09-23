@@ -2,6 +2,8 @@
 using EducationalPlataform.DTOs;
 using EducationalPlataform.Entities;
 using EducationalPlataform.Models.Enums;
+using EducationalPlataform.Validation;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -20,7 +22,6 @@ namespace EducationalPlataform.Controllers.AuthController.Register
         private readonly IConfiguration _configuration;
         private readonly IPasswordHasher<User> _passwordHasher;
 
-
         public AuthController(EducationalPlataformContext context, IConfiguration configuration, IPasswordHasher<User> passwordHasher)
         {
             _context = context;
@@ -28,13 +29,17 @@ namespace EducationalPlataform.Controllers.AuthController.Register
             _passwordHasher = passwordHasher;
         }
 
-
-
         [HttpPost("register")]
+        [AllowAnonymous]
         public async Task<IActionResult> Register([FromBody] UserRegisterDto dto)
         {
+            if (!ModelState.IsValid) return BadRequest(ModelState);
+
             if (await _context.Users.AnyAsync(u => u.UserName == dto.UserName))
-                throw new ArgumentException("Username already exists.");
+                return BadRequest(new { message = "Username already exists." });
+
+            if (dto.Profile == 0)
+                return BadRequest(new { message = "Selecione um perfil válido" });
 
             var user = new User
             {
@@ -42,7 +47,7 @@ namespace EducationalPlataform.Controllers.AuthController.Register
                 UserEmail = dto.UserEmail,
                 CPF = dto.CPF,
                 BirthDate = dto.BirthDate,
-                Profile = dto.Profile
+                Profile = (UserProfile)dto.Profile
             };
 
             user.PasswordHash = _passwordHasher.HashPassword(user, dto.Password);
@@ -50,23 +55,28 @@ namespace EducationalPlataform.Controllers.AuthController.Register
             _context.Users.Add(user);
             await _context.SaveChangesAsync();
 
-            return Ok("User registered successfully.");
+            return Ok(new { message = "User registered successfully." });
         }
 
-
-        
         [HttpPost("login")]
+        [AllowAnonymous]
         public async Task<IActionResult> Login([FromBody] UserLoginDto dto)
         {
-            var user = await _context.Users.FirstOrDefaultAsync(u => u.UserName == dto.UserName || u.UserEmail == dto.UserName);
+            if (!ModelState.IsValid) return BadRequest(ModelState);
 
-            if (user == null)
-                throw new ArgumentException("Invalid credentials");
+            var user = await _context.Users.FirstOrDefaultAsync(u => u.UserName == dto.UserName || u.UserEmail == dto.UserName);
+            if (user == null) return Unauthorized(new { message = "Invalid credentials" });
+
+            if (string.IsNullOrWhiteSpace(user.PasswordHash))
+            {
+                return Unauthorized(new
+                {
+                    message = "Esta conta ainda não possui senha. Defina uma senha no cadastro do aluno."
+                });
+            }
 
             var result = _passwordHasher.VerifyHashedPassword(user, user.PasswordHash, dto.Password);
-
-            if (result == PasswordVerificationResult.Failed)
-                throw new ArgumentException("Invalid credentials");
+            if (result == PasswordVerificationResult.Failed) return Unauthorized(new { message = "Invalid credentials" });
 
             if (result == PasswordVerificationResult.SuccessRehashNeeded)
             {
@@ -75,23 +85,207 @@ namespace EducationalPlataform.Controllers.AuthController.Register
                 await _context.SaveChangesAsync();
             }
 
-            var tokenHandler = new JwtSecurityTokenHandler();
-            var key = Encoding.ASCII.GetBytes(_configuration["Jwt:Key"]);
+            var token = GenerateJwtToken(user);
+            return Ok(new { token });
+        }
+
+        [Authorize]
+        [HttpGet("me")]
+        public async Task<IActionResult> Me()
+        {
+            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (string.IsNullOrEmpty(userId)) return Unauthorized();
+
+            if (!int.TryParse(userId, out var id)) return Unauthorized();
+
+            var user = await _context.Users.FindAsync(id);
+            if (user == null) return NotFound();
+
+            return Ok(new
+            {
+                Id = user.Id,
+                Name = user.UserName,
+                Email = user.UserEmail,
+                Role = user.Profile.ToString(),
+                Profile = (int)user.Profile
+            });
+        }
+
+        // Private helper to keep token creation in one place
+        private string GenerateJwtToken(User user)
+        {
+            var key = Encoding.UTF8.GetBytes(_configuration["Jwt:Key"]);
+            var now = DateTime.UtcNow;
+
+            var displayName = user.UserName ?? user.UserEmail ?? user.Id.ToString();
+
+            var claims = new[]
+            {
+                new Claim(ClaimTypes.Name, displayName),
+                new Claim(ClaimTypes.Role, user.Profile.ToString()),
+                new Claim(ClaimTypes.NameIdentifier, user.Id.ToString()),
+                new Claim("profile", ((int)user.Profile).ToString())
+            };
 
             var tokenDescriptor = new SecurityTokenDescriptor
             {
-                Subject = new ClaimsIdentity(new[]
-                {
-            new Claim(ClaimTypes.Name, user.UserName),
-            new Claim(ClaimTypes.Role, user.Profile.ToString())
-        }),
-                Expires = DateTime.UtcNow.AddHours(2),
-                SigningCredentials = new SigningCredentials(new SymmetricSecurityKey(key), SecurityAlgorithms.HmacSha256Signature)
+                Subject = new ClaimsIdentity(claims),
+                NotBefore = now,
+                IssuedAt = now,
+                Expires = now.AddHours(4),
+                Issuer = _configuration["Jwt:Issuer"],
+                Audience = _configuration["Jwt:Audience"],
+                SigningCredentials = new SigningCredentials(new SymmetricSecurityKey(key), SecurityAlgorithms.HmacSha256)
             };
 
+            var tokenHandler = new JwtSecurityTokenHandler();
             var token = tokenHandler.CreateToken(tokenDescriptor);
-            return Ok(new { token = tokenHandler.WriteToken(token) });
+            return tokenHandler.WriteToken(token);
         }
+
+
+
+        [HttpPost("register-course/{courseId:int}")]
+        [AllowAnonymous]
+        public async Task<IActionResult> RegisterCourse(
+            int courseId,
+            [FromBody] PublicCourseRegisterDto dto)
+        {
+            if (!ModelState.IsValid)
+                return BadRequest(ModelState);
+
+            var formattedCpf = CpfValidator.Format(dto.CPF);
+            var email = dto.UserEmail.Trim();
+
+            // 1. Verifica se o curso existe
+
+            var course = await _context.Courses
+                .Include(c => c.Modules)
+                    .ThenInclude(m => m.Lessons)
+                .FirstOrDefaultAsync(c => c.Id == courseId);
+
+            if (course == null)
+            {
+                return NotFound(new
+                {
+                    message = "Curso não encontrado."
+                });
+            }
+
+            // 2. E-mail já cadastrado: orientar login em vez de criar outra conta
+            var existingByEmail = await _context.Users
+                .Include(u => u.CourseEnrollments)
+                .FirstOrDefaultAsync(u =>
+                    u.UserEmail != null &&
+                    u.UserEmail.ToLower() == email.ToLower());
+
+            if (existingByEmail != null)
+            {
+                var alreadyEnrolled = existingByEmail.CourseEnrollments
+                    .Any(e => e.CourseId == courseId);
+
+                if (alreadyEnrolled)
+                {
+                    return Conflict(new
+                    {
+                        message = "Você já está inscrito neste curso. Faça login para acessá-lo."
+                    });
+                }
+
+                return Conflict(new
+                {
+                    message = "Este e-mail já possui uma conta. Faça login para se inscrever neste curso."
+                });
+            }
+
+            // 3. CPF já cadastrado (com ou sem máscara)
+            var usersWithCpf = await _context.Users
+                .Where(u => u.CPF != null && u.CPF != "")
+                .Select(u => u.CPF)
+                .ToListAsync();
+
+            var cpfExists = usersWithCpf.Any(stored =>
+                CpfValidator.SameCpf(stored, formattedCpf));
+
+            if (cpfExists)
+            {
+                return Conflict(new
+                {
+                    message = "Este CPF já está cadastrado. Faça login para se inscrever neste curso."
+                });
+            }
+
+            // 5. Cria usuário
+            var user = new User
+            {
+                UserName = dto.UserName,
+                UserEmail = dto.UserEmail,
+                CPF = formattedCpf,
+                PhoneNumber = dto.PhoneNumber,
+                BirthDate = dto.BirthDate,
+
+                // IMPORTANTE:
+                // Cadastro público sempre cria aluno.
+                Profile = UserProfile.Student,
+
+                Role = UserProfile.Student.ToString()
+            };
+
+            // 6. Gera hash da senha
+            user.PasswordHash = _passwordHasher.HashPassword(
+                user,
+                dto.Password
+            );
+
+            await using var transaction = await _context.Database.BeginTransactionAsync();
+
+            try
+            {
+                // 7. Salva usuário
+                _context.Users.Add(user);
+                await _context.SaveChangesAsync();
+
+                // 8. Cria matrícula como Pending
+                var enrollment = new CourseEnrollment(
+                    user.Id,
+                    courseId
+                );
+
+                enrollment.Status = "Pending";
+                enrollment.ProgressPercentage = 0;
+                enrollment.CompletedLessons = 0;
+                enrollment.TotalLessons = course.Modules
+                    .SelectMany(m => m.Lessons)
+                    .Count();
+
+                _context.CourseEnrollments.Add(enrollment);
+
+                await _context.SaveChangesAsync();
+
+                // 9. Confirma transação
+                await transaction.CommitAsync();
+
+                return Ok(new
+                {
+                    message = "Cadastro realizado com sucesso.",
+                    userId = user.Id,
+                    enrollmentId = enrollment.Id,
+                    courseId = course.Id,
+                    courseTitle = course.Title,
+                    enrollmentStatus = enrollment.Status
+                });
+            }
+            catch
+            {
+                await transaction.RollbackAsync();
+
+                return StatusCode(500, new
+                {
+                    message = "Não foi possível realizar o cadastro."
+                });
+            }
+        }
+
 
     }
 }

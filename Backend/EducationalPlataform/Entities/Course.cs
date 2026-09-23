@@ -15,11 +15,22 @@ namespace EducationalPlataform.Entities
         public int CreatorId { get; set; }
         public User Creator { get; set; }
 
+        
+        public int? TeacherId { get; set; }
+        public User? Teacher { get; set; }
+
+
 
 
         // relationships
         public ICollection<CourseEnrollment> EnrolledUsers { get; set; } = new List<CourseEnrollment>();
-        public ICollection<Lesson> Lessons { get; set; } = new List<Lesson>();
+        public ICollection<CourseModule> Modules { get; set; } = new List<CourseModule>();
+
+        public ICollection<Payment> Payments { get; set; }
+
+        public ICollection<Announcement> Announcements { get; set; } = new List<Announcement>();
+
+
 
 
         public Course() { }

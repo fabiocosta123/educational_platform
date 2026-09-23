@@ -1,6 +1,6 @@
 ﻿using EducationalPlataform.Data;
-using Microsoft.EntityFrameworkCore.Design;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Design;
 
 namespace EducationalPlataform.Factories
 {
@@ -8,8 +8,21 @@ namespace EducationalPlataform.Factories
     {
         public EducationalPlataformContext CreateDbContext(string[] args)
         {
+            AppContext.SetSwitch("Npgsql.EnableLegacyTimestampBehavior", true);
+
+            var configuration = new ConfigurationBuilder()
+                .SetBasePath(Directory.GetCurrentDirectory())
+                .AddJsonFile("appsettings.json", optional: true)
+                .AddJsonFile("appsettings.Development.json", optional: true)
+                .AddEnvironmentVariables()
+                .Build();
+
+            var connectionString = configuration.GetConnectionString("EducationalPlataformContext")
+                ?? throw new InvalidOperationException("Connection string 'EducationalPlataformContext' not found.");
+
             var optionsBuilder = new DbContextOptionsBuilder<EducationalPlataformContext>();
-            optionsBuilder.UseSqlServer("Server=FABIO\\SQLEXPRESS;Database=EducationalPlataform;Trusted_Connection=True;TrustServerCertificate=True;");
+            optionsBuilder.UseNpgsql(connectionString);
+
             return new EducationalPlataformContext(optionsBuilder.Options);
         }
     }

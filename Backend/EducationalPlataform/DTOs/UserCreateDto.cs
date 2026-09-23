@@ -1,4 +1,5 @@
 ﻿using EducationalPlataform.Models.Enums;
+using EducationalPlataform.Validation;
 using System.ComponentModel.DataAnnotations;
 
 public class UserCreateDto
@@ -10,12 +11,14 @@ public class UserCreateDto
     [Required(ErrorMessage = "O email é obrigatório.")]
     [EmailAddress(ErrorMessage = "O email deve ser válido.")]
     public string UserEmail { get; set; } = string.Empty;
+    public string PhoneNumber { get; set; }
 
     [Required(ErrorMessage = "A senha é obrigatória.")]
     public string Password { get; set; } = string.Empty;
 
     
-    [RegularExpression(@"^\d{3}\.\d{3}\.\d{3}-\d{2}$", ErrorMessage = "Formato inválido de CPF.")]
+    [Required(ErrorMessage = "CPF é obrigatório.")]
+    [Cpf]
     public string CPF { get; set; } = string.Empty;
 
     [Range(typeof(DateTime), "1900-01-01", "2100-12-31", ErrorMessage = "Data de nascimento deve estar entre 1900 e 2100.")]
@@ -23,4 +26,5 @@ public class UserCreateDto
 
     [Required(ErrorMessage = "Perfil é obrigatório.")]
     public UserProfile Profile { get; set; }
+    public string Role { get; set; } = string.Empty.ToLower();
 }

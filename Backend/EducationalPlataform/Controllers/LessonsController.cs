@@ -1,84 +1,369 @@
 ﻿using AutoMapper;
 using EducationalPlataform.Data;
-using EducationalPlataform.Entities;
 using EducationalPlataform.DTOs;
-using Microsoft.AspNetCore.Mvc;
+using EducationalPlataform.Entities;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
+using System.Security.Claims;
 
 namespace EducationalPlataform.Controllers
 {
     [Authorize]
-    [Route("api/[controller]")]
     [ApiController]
+    [Route("api/[controller]")]
     public class LessonsController : ControllerBase
     {
         private readonly EducationalPlataformContext _context;
         private readonly IMapper _mapper;
 
-
-        public LessonsController(EducationalPlataformContext context, IMapper mapper)
+        public LessonsController(
+            EducationalPlataformContext context,
+            IMapper mapper)
         {
             _context = context;
             _mapper = mapper;
         }
 
-        [HttpGet]
-        public ActionResult<IEnumerable<LessonReadDto>> GetAll()
-        {
-            var lessons = _context.Lessons.ToList();
-            var lessonsDto = _mapper.Map<List<LessonReadDto>>(lessons);
+        
+        // Lista todas 
+       
 
-            return Ok(lessonsDto);
+        [HttpGet]
+        public async Task<ActionResult<IEnumerable<LessonReadDto>>> GetAll()
+        {
+            var lessons = await _context.Lessons
+                .AsNoTracking()
+                .Include(l => l.Teacher)
+                .Include(l => l.CourseModule)
+                .OrderBy(l => l.Order)
+                .ToListAsync();
+
+            return Ok(_mapper.Map<List<LessonReadDto>>(lessons));
         }
+
+        
+        // Buscar por id
+        
 
         [HttpGet("{id}")]
-        public ActionResult<LessonReadDto> GetById(int id)
+        public async Task<ActionResult<LessonReadDto>> GetById(int id)
         {
-            var lesson = _context.Lessons.Find(id);
-            if (lesson == null)
-                throw new ArgumentException($"Course with id {id} not found");
+            var lesson = await _context.Lessons
+                .AsNoTracking()
+                .Include(l => l.Teacher)
+                .Include(l => l.CourseModule)
+                .FirstOrDefaultAsync(l => l.Id == id);
 
-            var lessonDto = _mapper.Map<LessonReadDto>(lesson);
-            return Ok(lessonDto);
+            if (lesson == null)
+                return NotFound();
+
+            return Ok(_mapper.Map<LessonReadDto>(lesson));
         }
+
+        
+        // Estatisticas do professor
+        
+
+        [HttpGet("teacher/{teacherId}/stats")]
+        public async Task<ActionResult> GetLessonStatsByTeacher(int teacherId)
+        {
+            var lessons = await _context.Lessons
+                .Where(l => l.TeacherId == teacherId)
+                .ToListAsync();
+
+            return Ok(new
+            {
+                totalLessons = lessons.Count,
+                publishedLessons = lessons.Count(l => l.IsPublished),
+                unpublishedLessons = lessons.Count(l => !l.IsPublished)
+            });
+        }
+
+
+        // Cria 
+
 
         [HttpPost]
-        public ActionResult<LessonReadDto> Create([FromBody] LessonCreateDto dto)
+        [RequestSizeLimit(10 * 1024 * 1024)] // 10 MB
+        public async Task<ActionResult<LessonReadDto>> Create(
+        [FromForm] LessonCreateDto dto,
+        IFormFile? material)
         {
-            var lesson = _mapper.Map<Lesson>(dto);
+            
+            // 1. Localiza o módulo e o curso          
+
+            var module = await _context.CourseModules
+                .Include(m => m.Course)
+                .FirstOrDefaultAsync(m => m.Id == dto.CourseModuleId);
+
+            if (module == null)
+                return BadRequest("Módulo não encontrado.");
+
+            // 2.professor responsável            
+
+            if (module.Course.TeacherId == null)
+                return BadRequest(
+                    "O curso não possui um professor associado.");
+
+            var courseTeacherId = module.Course.TeacherId.Value;
+
+           
+            // 3. Identifica o usuário autenticado            
+
+            var userRole = User.FindFirstValue(ClaimTypes.Role);
+
+            int teacherId;
+            
+            // 4. Coordinator           
+            // O Coordinator pode criar aulas para qualquer curso,
+            // mas a aula continuará pertencendo ao professor do curso.
+
+            if (userRole == "Coordinator")
+            {
+                teacherId = courseTeacherId;
+            }
+           
+            // 5. Teacher           
+            // O professor só pode criar aulas nos próprios cursos.
+
+            else
+            {
+                var teacherIdClaim =
+                    User.FindFirstValue(ClaimTypes.NameIdentifier);
+
+                if (!int.TryParse(teacherIdClaim, out teacherId))
+                {
+                    return Unauthorized(
+                        "Professor não identificado.");
+                }
+
+                if (teacherId != courseTeacherId)
+                    return Forbid();
+            }
+
+            
+            // 6. Upload do material           
+
+            string? materialUrl = null;
+
+            if (material != null)
+            {
+                var extension = Path
+                    .GetExtension(material.FileName)
+                    .ToLowerInvariant();
+
+                var allowedExtensions = new[]
+                {
+            ".pdf",
+            ".txt"
+        };
+
+                if (!allowedExtensions.Contains(extension))
+                {
+                    return BadRequest(
+                        "Formato de arquivo não permitido. " +
+                        "Envie apenas PDF ou TXT.");
+                }
+
+                if (material.Length == 0)
+                    return BadRequest(
+                        "O arquivo enviado está vazio.");
+
+                const long maxFileSize = 10 * 1024 * 1024;
+
+                if (material.Length > maxFileSize)
+                {
+                    return BadRequest(
+                        "O arquivo não pode ultrapassar 10 MB.");
+                }
+
+                var uploadsFolder = Path.Combine(
+                    Directory.GetCurrentDirectory(),
+                    "wwwroot",
+                    "uploads",
+                    "lessons");
+
+                Directory.CreateDirectory(uploadsFolder);
+
+                var uniqueFileName =
+                    $"{Guid.NewGuid():N}{extension}";
+
+                var filePath = Path.Combine(
+                    uploadsFolder,
+                    uniqueFileName);
+
+                await using (var stream = new FileStream(
+                    filePath,
+                    FileMode.Create))
+                {
+                    await material.CopyToAsync(stream);
+                }
+
+                materialUrl =
+                    $"/uploads/lessons/{uniqueFileName}";
+            }
+
+            
+            // 7. Criação da aula            
+            var lesson = new Lesson
+            {
+                Title = dto.Title,
+                Description = dto.Description,
+                VideoUrl = dto.VideoUrl,
+                PdfUrl = materialUrl,
+                DurationSeconds = dto.DurationSeconds,
+                Order = dto.Order,
+                IsPublished = dto.IsPublished,
+                CourseModuleId = dto.CourseModuleId,
+
+               
+                TeacherId = teacherId
+            };
 
             _context.Lessons.Add(lesson);
-            _context.SaveChanges();
 
-            var lessonReadDto = _mapper.Map<LessonReadDto>(lesson);
+            await _context.SaveChangesAsync();
 
-            return CreatedAtAction(nameof(GetById), new { id = lesson.Id }, lessonReadDto);
+            
+            // 8. Carrega o professor para dto 
+            
+
+            await _context.Entry(lesson)
+                .Reference(l => l.Teacher)
+                .LoadAsync();
+
+            
+            // 9. Retorna a aula criada
+            
+
+            return CreatedAtAction(
+                nameof(GetById),
+                new { id = lesson.Id },
+                _mapper.Map<LessonReadDto>(lesson));
         }
+
+
+        // Altera 
+
 
         [HttpPut("{id}")]
-        public ActionResult Update(int id, [FromBody] LessonUpdateDto dto)
+        public async Task<IActionResult> Update(
+            int id,
+            [FromBody] LessonUpdateDto dto)
         {
-            var lesson = _context.Lessons.Find(id);
-            if (lesson == null)
-                throw new ArgumentException($"Course with id {id} not found");
 
-            _mapper.Map(dto, lesson);
-            _context.SaveChanges();
-            
+            if (!TryGetUserId(out var userId))
+                return Unauthorized("Usuário não autenticado.");
+
+
+            var lesson = await _context.Lessons
+                .Include(l => l.CourseModule)
+                    .ThenInclude(c => c.Course)
+                .FirstOrDefaultAsync(l => l.Id == id);
+
+            if (lesson == null)
+                return NotFound("Aula não encontrada.");
+
+            var userRole = User.FindFirstValue(ClaimTypes.Role);
+
+            if (userRole != "Coordinator" && lesson.CourseModule.Course.TeacherId != userId)
+                return Forbid("Você não tem permissão para alterar esta aula.");
+
+
+            var module = await _context.CourseModules
+                .Include(m => m.Course)
+                .FirstOrDefaultAsync(m => m.Id == dto.CourseModuleId);
+
+            if (module == null)
+                return NotFound("Módulo não encontrado.");
+
+            if (userRole != "Coordinator" && module.Course.TeacherId != userId)
+                return Forbid("Você não tem permissão para mover a aula para este módulo.");
+
+            lesson.Title = dto.Title;
+            lesson.Description = dto.Description;
+            lesson.VideoUrl = dto.VideoUrl;
+            //lesson.PdfUrl = dto.PdfUrl;
+            lesson.DurationSeconds = dto.DurationSeconds;
+            lesson.Order = dto.Order;
+            lesson.IsPublished = dto.IsPublished;
+            lesson.CourseModuleId = dto.CourseModuleId;
+
+            await _context.SaveChangesAsync();
+
             return NoContent();
         }
+
+
+        // Excluir 
+
 
         [HttpDelete("{id}")]
-        public ActionResult Delete(int id)
+        public async Task<IActionResult> Delete(int id)
         {
-            var lesson = _context.Lessons.Find(id);
-            if (lesson == null)
-                throw new ArgumentException($"Course with id {id} not found");
-            _context.Lessons.Remove(lesson);
-            _context.SaveChanges();
 
+            if (!TryGetUserId(out var userId))
+                return Unauthorized("Usuário não autenticado.");
+
+            var lesson = await _context.Lessons
+                .Include(l => l.CourseModule)
+                    .ThenInclude(m => m.Course)
+                .FirstOrDefaultAsync(l => l.Id == id);
+
+            if (lesson == null)
+                return NotFound("Aula não encontrada.");
+
+            var userRole = User.FindFirstValue(ClaimTypes.Role);
+
+            if (userRole != "Coordinator" && lesson.CourseModule.Course.TeacherId != userId)
+                return Forbid("Você não tem permissão para excluir esta aula.");
+
+            var pdfUrl = lesson.PdfUrl;
+
+            _context.Lessons.Remove(lesson);
+            await _context.SaveChangesAsync();
+
+            if (!string.IsNullOrWhiteSpace(lesson.PdfUrl))
+            {
+                var relativePath = lesson.PdfUrl
+                    .TrimStart('/')
+                    .Replace('/', Path.DirectorySeparatorChar);
+
+
+                var filePath = Path.Combine(
+                    Directory.GetCurrentDirectory(),
+                    "wwwroot",
+                    relativePath);
+
+                if (System.IO.File.Exists(filePath))
+                {
+                    try
+                    {
+                        System.IO.File.Delete(filePath);
+
+                    }
+                    catch (Exception ex)
+                    {
+                        return StatusCode(500, "Erro ao excluir o arquivo associado à aula.");
+                    }
+
+                }               
+
+                
+            }
             return NoContent();
         }
-       
+
+        private bool TryGetUserId(out int userId)
+        {
+            userId = 0;
+            var idClaim = User.FindFirstValue(ClaimTypes.NameIdentifier);
+
+            if (string.IsNullOrEmpty(idClaim))
+                return false;
+
+            return int.TryParse(idClaim, out userId);
+        }
     }
 }
