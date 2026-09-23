@@ -3,17 +3,31 @@ using EducationalPlataform.Entities;
 using EducationalPlataform.Interface;
 using EducationalPlataform.Services;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
 using System.Security.Claims;
 using System.Text;
-using System.Text.Json; 
+using System.Text.Json;
 
 AppContext.SetSwitch("Npgsql.EnableLegacyTimestampBehavior", true);
 
 var builder = WebApplication.CreateBuilder(args);
+
+var listenPort = Environment.GetEnvironmentVariable("PORT");
+if (!string.IsNullOrWhiteSpace(listenPort))
+{
+    builder.WebHost.UseUrls($"http://0.0.0.0:{listenPort}");
+}
+
+builder.Services.Configure<ForwardedHeadersOptions>(options =>
+{
+    options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
+    options.KnownNetworks.Clear();
+    options.KnownProxies.Clear();
+});
 
 // Controllers com JSON camelCase
 builder.Services.AddControllers()
@@ -70,13 +84,32 @@ builder.Services.AddScoped<IJwtService, JwtService>();
 builder.Services.AddScoped<IEmailService, EmailService>();
 
 // CORS
+var configuredOrigins = builder.Configuration["Cors:AllowedOrigins"]?
+    .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+    ?? [];
+
+var allowedOrigins = new HashSet<string>(
+    configuredOrigins.Concat(["http://localhost:3000", "http://192.168.1.75:3000"]),
+    StringComparer.OrdinalIgnoreCase);
+
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowFrontend", policy =>
     {
-        policy.WithOrigins("http://localhost:3000", "http://192.168.1.75:3000")
-              .AllowAnyHeader()
-              .AllowAnyMethod();
+        policy
+            .SetIsOriginAllowed(origin =>
+            {
+                if (allowedOrigins.Contains(origin))
+                {
+                    return true;
+                }
+
+                return Uri.TryCreate(origin, UriKind.Absolute, out var uri)
+                    && uri.Scheme == Uri.UriSchemeHttps
+                    && uri.Host.EndsWith(".vercel.app", StringComparison.OrdinalIgnoreCase);
+            })
+            .AllowAnyHeader()
+            .AllowAnyMethod();
     });
 });
 
@@ -114,6 +147,7 @@ builder.Services.AddSwaggerGen(c =>
 
 var app = builder.Build();
 
+app.UseForwardedHeaders();
 app.UseStaticFiles();
 
 // Migrations
@@ -136,9 +170,15 @@ else
 }
 
 app.UseMiddleware<EducationalPlataform.Middleware.ErrorHandlingMiddleware>();
-app.UseHttpsRedirection();
+
+if (string.IsNullOrWhiteSpace(listenPort))
+{
+    app.UseHttpsRedirection();
+}
+
 app.UseCors("AllowFrontend");
 app.UseAuthentication();
 app.UseAuthorization();
+app.MapGet("/health", () => Results.Ok(new { status = "ok" }));
 app.MapControllers();
 app.Run();

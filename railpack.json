@@ -1,0 +1,23 @@
+{
+  "$schema": "https://schema.railpack.com",
+  "provider": "dotnet",
+  "packages": {
+    "dotnet": "10.0"
+  },
+  "steps": {
+    "install": {
+      "commands": [
+        "dotnet restore Backend/EducationalPlataform/EducationalPlataform.csproj"
+      ]
+    },
+    "build": {
+      "inputs": [{ "step": "install" }],
+      "commands": [
+        "dotnet publish Backend/EducationalPlataform/EducationalPlataform.csproj -c Release -o out /p:UseAppHost=false"
+      ]
+    }
+  },
+  "deploy": {
+    "startCommand": "ASPNETCORE_URLS=http://0.0.0.0:${PORT:-8080} dotnet ./out/EducationalPlataform.dll"
+  }
+}
