@@ -1,4 +1,5 @@
 ﻿using EducationalPlataform.Models.Enums;
+using EducationalPlataform.Validation;
 using System.ComponentModel.DataAnnotations;
 
 public class UserCreateDto
@@ -16,7 +17,8 @@ public class UserCreateDto
     public string Password { get; set; } = string.Empty;
 
     
-    [RegularExpression(@"^\d{3}\.\d{3}\.\d{3}-\d{2}$", ErrorMessage = "Formato inválido de CPF.")]
+    [Required(ErrorMessage = "CPF é obrigatório.")]
+    [Cpf]
     public string CPF { get; set; } = string.Empty;
 
     [Range(typeof(DateTime), "1900-01-01", "2100-12-31", ErrorMessage = "Data de nascimento deve estar entre 1900 e 2100.")]

@@ -9,7 +9,7 @@ namespace EducationalPlataform.DTOs
         public string Name { get; set; } = string.Empty;
 
         [StringLength(1000, ErrorMessage = "A descrição pode ter no máximo 1000 caracteres.")]
-        public string Description { get; set; }
+        public string? Description { get; set; }
 
         [Required]
         public int CourseId { get; set; }

@@ -115,7 +115,7 @@ namespace EducationalPlataform.Data
                 
 
                 entity.Property(lp => lp.StartedAt)
-                    .HasDefaultValueSql("GETDATE()");
+                    .HasDefaultValueSql("CURRENT_TIMESTAMP");
 
                 entity.Property(lp => lp.LastWatchedSecond)
                     .HasDefaultValue(0);
@@ -220,38 +220,19 @@ namespace EducationalPlataform.Data
                 .WithMany()
                 .HasForeignKey(r => r.UserId)
                 .OnDelete(DeleteBehavior.Restrict);
-
-            // Discussion threads and posts
-            modelBuilder.Entity<DiscussionThread>()
-                .HasOne(t => t.CreatedByUser)
-                .WithMany(u => u.DiscussionThreadsCreated)
-                .HasForeignKey(t => t.CreatedByUserId)
-                .OnDelete(DeleteBehavior.Restrict);
-
-            modelBuilder.Entity<DiscussionPost>()
-                .HasOne(p => p.User)
-                .WithMany(u => u.DiscussionPosts)
-                .HasForeignKey(p => p.UserId)
-                .OnDelete(DeleteBehavior.Restrict);
-
-            modelBuilder.Entity<DiscussionPost>()
-                .HasOne(p => p.DiscussionThread)
-                .WithMany(t => t.Posts)
-                .HasForeignKey(p => p.DiscussionThreadId)
-                .OnDelete(DeleteBehavior.Cascade);
         }
 
         private static void ConfigureAnnouncement(ModelBuilder modelBuilder)
         {
             modelBuilder.Entity<Announcement>()
                 .HasOne(a => a.Author)
-                .WithMany()
+                .WithMany(u => u.AnnouncementsCreated)
                 .HasForeignKey(a => a.AuthorId)
                 .OnDelete(DeleteBehavior.Restrict);
 
             modelBuilder.Entity<Announcement>()
                 .HasOne(a => a.Course)
-                .WithMany()
+                .WithMany(c => c.Announcements)
                 .HasForeignKey(a => a.CourseId)
                 .OnDelete(DeleteBehavior.SetNull);
         }

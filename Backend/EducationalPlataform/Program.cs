@@ -11,6 +11,8 @@ using System.Security.Claims;
 using System.Text;
 using System.Text.Json; 
 
+AppContext.SetSwitch("Npgsql.EnableLegacyTimestampBehavior", true);
+
 var builder = WebApplication.CreateBuilder(args);
 
 // Controllers com JSON camelCase
@@ -84,7 +86,7 @@ builder.Services.AddAutoMapper(AppDomain.CurrentDomain.GetAssemblies());
 
 // DbContext
 builder.Services.AddDbContext<EducationalPlataformContext>(options =>
-    options.UseSqlServer(builder.Configuration.GetConnectionString("EducationalPlataformContext")
+    options.UseNpgsql(builder.Configuration.GetConnectionString("EducationalPlataformContext")
         ?? throw new InvalidOperationException("Connection string 'EducationalPlataformContext' not found.")));
 
 // Swagger

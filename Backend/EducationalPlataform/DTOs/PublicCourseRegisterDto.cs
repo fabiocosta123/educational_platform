@@ -1,4 +1,5 @@
 ﻿using System.ComponentModel.DataAnnotations;
+using EducationalPlataform.Validation;
 
 namespace EducationalPlataform.DTOs
 {
@@ -17,6 +18,7 @@ namespace EducationalPlataform.DTOs
         public string UserEmail { get; set; } = string.Empty;
         
         [Required(ErrorMessage = "CPF é obrigatório.")]
+        [Cpf]
         public string CPF { get; set; } = string.Empty;
         [Required(ErrorMessage = "Telefone é obrigatório.")]
         public string PhoneNumber { get; set; } = string.Empty;

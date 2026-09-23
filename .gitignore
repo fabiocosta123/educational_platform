@@ -14,3 +14,4 @@ obj/
 
 # Configs locais
 appsettings.Development.json
+**/appsettings.Development.json
