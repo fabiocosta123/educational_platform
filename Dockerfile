@@ -1,10 +1,10 @@
 FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
 WORKDIR /src
 
-COPY EducationalPlataform.csproj ./
+COPY Backend/EducationalPlataform/EducationalPlataform.csproj ./
 RUN dotnet restore EducationalPlataform.csproj
 
-COPY . ./
+COPY Backend/EducationalPlataform/ ./
 RUN dotnet publish EducationalPlataform.csproj -c Release -o /app/publish /p:UseAppHost=false
 
 FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS final
