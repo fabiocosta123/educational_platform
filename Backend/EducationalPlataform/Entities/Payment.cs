@@ -11,6 +11,7 @@ namespace EducationalPlataform.Entities
         public PaymentStatus Status { get; set; } = PaymentStatus.Pending; 
         public DateTime CreatedAt { get; set; } = DateTime.Now;
         public DateTime? PaidAt { get; set; }
+        public DateTime? SettledAt { get; set; }
         public DateTime? DueDate { get; set; }
 
 

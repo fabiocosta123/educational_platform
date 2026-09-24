@@ -2,6 +2,7 @@
 using EducationalPlataform.Data;
 using EducationalPlataform.DTOs;
 using EducationalPlataform.Entities;
+using EducationalPlataform.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -16,13 +17,16 @@ namespace EducationalPlataform.Controllers
     {
         private readonly EducationalPlataformContext _context;
         private readonly IMapper _mapper;
+        private readonly EnrollmentProgressService _enrollmentProgress;
 
         public LessonsController(
             EducationalPlataformContext context,
-            IMapper mapper)
+            IMapper mapper,
+            EnrollmentProgressService enrollmentProgress)
         {
             _context = context;
             _mapper = mapper;
+            _enrollmentProgress = enrollmentProgress;
         }
 
         
@@ -224,6 +228,8 @@ namespace EducationalPlataform.Controllers
             _context.Lessons.Add(lesson);
 
             await _context.SaveChangesAsync();
+            await _enrollmentProgress.RecalculateCourseAsync(module.Course.Id);
+            await _context.SaveChangesAsync();
 
             
             // 8. Carrega o professor para dto 
@@ -281,6 +287,8 @@ namespace EducationalPlataform.Controllers
             if (userRole != "Coordinator" && module.Course.TeacherId != userId)
                 return Forbid("Você não tem permissão para mover a aula para este módulo.");
 
+            var previousCourseId = lesson.CourseModule.Course.Id;
+
             lesson.Title = dto.Title;
             lesson.Description = dto.Description;
             lesson.VideoUrl = dto.VideoUrl;
@@ -290,6 +298,12 @@ namespace EducationalPlataform.Controllers
             lesson.IsPublished = dto.IsPublished;
             lesson.CourseModuleId = dto.CourseModuleId;
 
+            await _context.SaveChangesAsync();
+            await _enrollmentProgress.RecalculateCourseAsync(previousCourseId);
+            if (module.Course.Id != previousCourseId)
+            {
+                await _enrollmentProgress.RecalculateCourseAsync(module.Course.Id);
+            }
             await _context.SaveChangesAsync();
 
             return NoContent();
@@ -319,9 +333,12 @@ namespace EducationalPlataform.Controllers
             if (userRole != "Coordinator" && lesson.CourseModule.Course.TeacherId != userId)
                 return Forbid("Você não tem permissão para excluir esta aula.");
 
+            var courseId = lesson.CourseModule.Course.Id;
             var pdfUrl = lesson.PdfUrl;
 
             _context.Lessons.Remove(lesson);
+            await _context.SaveChangesAsync();
+            await _enrollmentProgress.RecalculateCourseAsync(courseId);
             await _context.SaveChangesAsync();
 
             if (!string.IsNullOrWhiteSpace(lesson.PdfUrl))

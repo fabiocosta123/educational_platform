@@ -15,8 +15,10 @@ using System.Text.Json;
 AppContext.SetSwitch("Npgsql.EnableLegacyTimestampBehavior", true);
 
 var configuredPort = Environment.GetEnvironmentVariable("PORT");
-var listenPort = configuredPort ?? "8080";
-Environment.SetEnvironmentVariable("ASPNETCORE_URLS", $"http://0.0.0.0:{listenPort}");
+if (!string.IsNullOrWhiteSpace(configuredPort))
+{
+    Environment.SetEnvironmentVariable("ASPNETCORE_URLS", $"http://0.0.0.0:{configuredPort}");
+}
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -85,6 +87,8 @@ builder.Services.AddAuthorization();
 builder.Services.AddScoped<IUserService, UserService>();
 builder.Services.AddScoped<IJwtService, JwtService>();
 builder.Services.AddScoped<IEmailService, EmailService>();
+builder.Services.AddScoped<EnrollmentProgressService>();
+builder.Services.AddScoped<CertificateEligibilityService>();
 builder.Services.AddHostedService<DatabaseMigrationService>();
 
 // CORS
