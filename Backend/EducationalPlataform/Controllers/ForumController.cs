@@ -169,8 +169,8 @@ namespace EducationalPlataform.Controllers
             if (question == null)
                 return NotFound("Pergunta não encontrada.");
 
-            if (!IsAuthorOrCourseStaff(userId, question))
-                return StatusCode(StatusCodes.Status403Forbidden, new { message = "Somente o autor, o professor do curso ou o coordenador pode alterar o status da pergunta." });
+            if (!IsCourseStaff(userId, question))
+                return StatusCode(StatusCodes.Status403Forbidden, new { message = "Somente o professor do curso ou o coordenador pode alterar o status da pergunta." });
 
             question.IsResolved = dto.IsResolved;
             question.UpdatedAt = DateTime.UtcNow;
@@ -335,15 +335,20 @@ namespace EducationalPlataform.Controllers
                 ActiveEnrollmentStatuses.Contains(e.Status));
         }
 
-        private bool IsAuthorOrCourseStaff(int userId, ForumQuestion question)
+        private bool IsCourseStaff(int userId, ForumQuestion question)
         {
             if (IsCoordinator())
                 return true;
 
-            if (question.UserId == userId)
+            return question.Course.TeacherId == userId || question.Course.CreatorId == userId;
+        }
+
+        private bool IsAuthorOrCourseStaff(int userId, ForumQuestion question)
+        {
+            if (IsCourseStaff(userId, question))
                 return true;
 
-            return question.Course.TeacherId == userId || question.Course.CreatorId == userId;
+            return question.UserId == userId;
         }
 
         private bool IsCoordinator()

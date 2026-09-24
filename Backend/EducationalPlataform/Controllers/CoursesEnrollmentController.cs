@@ -3,6 +3,7 @@ using EducationalPlataform.Data;
 using EducationalPlataform.DTOs;
 using EducationalPlataform.Entities;
 using EducationalPlataform.Models.Enums;
+using EducationalPlataform.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -18,15 +19,20 @@ namespace EducationalPlataform.Controllers
     {
         private readonly EducationalPlataformContext _context;
         private readonly IMapper _mapper;
+        private readonly EnrollmentProgressService _enrollmentProgress;
 
-        public CoursesEnrollmentController(EducationalPlataformContext context, IMapper mapper)
+        public CoursesEnrollmentController(
+            EducationalPlataformContext context,
+            IMapper mapper,
+            EnrollmentProgressService enrollmentProgress)
         {
             _context = context;
             _mapper = mapper;
+            _enrollmentProgress = enrollmentProgress;
         }
 
         [HttpGet]
-        public ActionResult<IEnumerable<CourseEnrollmentReadDto>> GetAll([FromQuery] int? userId)
+        public async Task<ActionResult<IEnumerable<CourseEnrollmentReadDto>>> GetAll([FromQuery] int? userId)
         {
             if (!TryGetCurrentUserId(out var currentUserId))
                 return Unauthorized();
@@ -48,7 +54,19 @@ namespace EducationalPlataform.Controllers
                 query = query.Where(e => e.UserId == currentUserId);
             }
 
-            var enrollments = query.ToList();
+            var enrollments = await query.ToListAsync();
+
+            if (!IsStaff())
+            {
+                foreach (var courseId in enrollments.Select(e => e.CourseId).Distinct())
+                {
+                    await _enrollmentProgress.RecalculateCourseAsync(courseId);
+                }
+
+                await _context.SaveChangesAsync();
+                enrollments = await query.ToListAsync();
+            }
+
             var enrollmentsDto = _mapper.Map<List<CourseEnrollmentReadDto>>(enrollments);
             return Ok(enrollmentsDto);
         }

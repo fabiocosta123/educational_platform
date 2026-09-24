@@ -3,6 +3,7 @@ using System;
 using EducationalPlataform.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace EducationalPlataform.Migrations
 {
     [DbContext(typeof(EducationalPlataformContext))]
-    partial class EducationalPlataformContextModelSnapshot : ModelSnapshot
+    [Migration("20260924022357_AssessmentAttemptStatus")]
+    partial class AssessmentAttemptStatus
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -573,9 +576,6 @@ namespace EducationalPlataform.Migrations
                         .HasColumnType("timestamp without time zone");
 
                     b.Property<DateTime?>("PaidAt")
-                        .HasColumnType("timestamp without time zone");
-
-                    b.Property<DateTime?>("SettledAt")
                         .HasColumnType("timestamp without time zone");
 
                     b.Property<string>("Status")

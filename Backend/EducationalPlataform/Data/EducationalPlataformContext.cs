@@ -23,6 +23,12 @@ namespace EducationalPlataform.Data
         public DbSet<ForumQuestion> ForumQuestions => Set<ForumQuestion>();       
         public DbSet<Announcement> Announcements => Set<Announcement>();
         public DbSet<ForumReply> ForumReplies => Set<ForumReply>();
+        public DbSet<Assessment> Assessments => Set<Assessment>();
+        public DbSet<AssessmentQuestion> AssessmentQuestions => Set<AssessmentQuestion>();
+        public DbSet<AssessmentOption> AssessmentOptions => Set<AssessmentOption>();
+        public DbSet<AssessmentAttempt> AssessmentAttempts => Set<AssessmentAttempt>();
+        public DbSet<AssessmentAnswer> AssessmentAnswers => Set<AssessmentAnswer>();
+        public DbSet<Certificate> Certificates => Set<Certificate>();
 
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
@@ -37,6 +43,8 @@ namespace EducationalPlataform.Data
             ConfigurePaymentAudit(modelBuilder);
             ConfigureForum(modelBuilder);
             ConfigureAnnouncement(modelBuilder);
+            ConfigureAssessments(modelBuilder);
+            ConfigureCertificate(modelBuilder);
         }
 
         private static void ConfigureLesson(ModelBuilder modelBuilder)
@@ -235,6 +243,76 @@ namespace EducationalPlataform.Data
                 .WithMany(c => c.Announcements)
                 .HasForeignKey(a => a.CourseId)
                 .OnDelete(DeleteBehavior.SetNull);
+        }
+
+        private static void ConfigureAssessments(ModelBuilder modelBuilder)
+        {
+            modelBuilder.Entity<Assessment>(entity =>
+            {
+                entity.Property(a => a.Type).HasConversion<string>();
+                entity.Property(a => a.PassingScore).HasPrecision(5, 2);
+                entity.HasOne(a => a.Course)
+                    .WithMany(c => c.Assessments)
+                    .HasForeignKey(a => a.CourseId)
+                    .OnDelete(DeleteBehavior.Cascade);
+            });
+
+            modelBuilder.Entity<AssessmentQuestion>(entity =>
+            {
+                entity.Property(q => q.Points).HasPrecision(5, 2);
+                entity.HasOne(q => q.Assessment)
+                    .WithMany(a => a.Questions)
+                    .HasForeignKey(q => q.AssessmentId)
+                    .OnDelete(DeleteBehavior.Cascade);
+            });
+
+            modelBuilder.Entity<AssessmentOption>(entity =>
+            {
+                entity.HasOne(o => o.Question)
+                    .WithMany(q => q.Options)
+                    .HasForeignKey(o => o.QuestionId)
+                    .OnDelete(DeleteBehavior.Cascade);
+            });
+
+            modelBuilder.Entity<AssessmentAttempt>(entity =>
+            {
+                entity.Property(a => a.Score).HasPrecision(5, 2);
+                entity.Property(a => a.Status).HasMaxLength(20);
+                entity.HasOne(a => a.Assessment)
+                    .WithMany(a => a.Attempts)
+                    .HasForeignKey(a => a.AssessmentId)
+                    .OnDelete(DeleteBehavior.Cascade);
+                entity.HasOne(a => a.User)
+                    .WithMany()
+                    .HasForeignKey(a => a.UserId)
+                    .OnDelete(DeleteBehavior.Restrict);
+            });
+
+            modelBuilder.Entity<AssessmentAnswer>(entity =>
+            {
+                entity.HasOne(a => a.Attempt)
+                    .WithMany(t => t.Answers)
+                    .HasForeignKey(a => a.AttemptId)
+                    .OnDelete(DeleteBehavior.Cascade);
+            });
+        }
+
+        private static void ConfigureCertificate(ModelBuilder modelBuilder)
+        {
+            modelBuilder.Entity<Certificate>(entity =>
+            {
+                entity.Property(c => c.ExamAverage).HasPrecision(5, 2);
+                entity.HasIndex(c => c.Code).IsUnique();
+                entity.HasIndex(c => new { c.UserId, c.CourseId }).IsUnique();
+                entity.HasOne(c => c.User)
+                    .WithMany()
+                    .HasForeignKey(c => c.UserId)
+                    .OnDelete(DeleteBehavior.Cascade);
+                entity.HasOne(c => c.Course)
+                    .WithMany(c => c.Certificates)
+                    .HasForeignKey(c => c.CourseId)
+                    .OnDelete(DeleteBehavior.Cascade);
+            });
         }
     }
 }

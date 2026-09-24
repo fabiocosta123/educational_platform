@@ -14,13 +14,18 @@ using System.Text.Json;
 
 AppContext.SetSwitch("Npgsql.EnableLegacyTimestampBehavior", true);
 
+var configuredPort = Environment.GetEnvironmentVariable("PORT");
+if (!string.IsNullOrWhiteSpace(configuredPort))
+{
+    Environment.SetEnvironmentVariable("ASPNETCORE_URLS", $"http://0.0.0.0:{configuredPort}");
+}
+
 var builder = WebApplication.CreateBuilder(args);
 
-var listenPort = Environment.GetEnvironmentVariable("PORT");
-if (!string.IsNullOrWhiteSpace(listenPort))
+builder.Services.Configure<HostOptions>(options =>
 {
-    builder.WebHost.UseUrls($"http://0.0.0.0:{listenPort}");
-}
+    options.BackgroundServiceExceptionBehavior = BackgroundServiceExceptionBehavior.Ignore;
+});
 
 builder.Services.Configure<ForwardedHeadersOptions>(options =>
 {
@@ -82,6 +87,9 @@ builder.Services.AddAuthorization();
 builder.Services.AddScoped<IUserService, UserService>();
 builder.Services.AddScoped<IJwtService, JwtService>();
 builder.Services.AddScoped<IEmailService, EmailService>();
+builder.Services.AddScoped<EnrollmentProgressService>();
+builder.Services.AddScoped<CertificateEligibilityService>();
+builder.Services.AddHostedService<DatabaseMigrationService>();
 
 // CORS
 var configuredOrigins = builder.Configuration["Cors:AllowedOrigins"]?
@@ -119,8 +127,11 @@ builder.Services.AddAutoMapper(AppDomain.CurrentDomain.GetAssemblies());
 
 // DbContext
 builder.Services.AddDbContext<EducationalPlataformContext>(options =>
-    options.UseNpgsql(builder.Configuration.GetConnectionString("EducationalPlataformContext")
-        ?? throw new InvalidOperationException("Connection string 'EducationalPlataformContext' not found.")));
+    options.UseNpgsql(
+        NpgsqlConnectionString.Normalize(
+            builder.Configuration.GetConnectionString("EducationalPlataformContext")
+                ?? throw new InvalidOperationException("Connection string 'EducationalPlataformContext' not found.")),
+        npgsql => npgsql.EnableRetryOnFailure(5, TimeSpan.FromSeconds(10), null)));
 
 // Swagger
 builder.Services.AddEndpointsApiExplorer();
@@ -150,13 +161,6 @@ var app = builder.Build();
 app.UseForwardedHeaders();
 app.UseStaticFiles();
 
-// Migrations
-using (var scope = app.Services.CreateScope())
-{
-    var db = scope.ServiceProvider.GetRequiredService<EducationalPlataformContext>();
-    db.Database.Migrate();
-}
-
 // Pipeline
 if (app.Environment.IsDevelopment())
 {
@@ -171,7 +175,7 @@ else
 
 app.UseMiddleware<EducationalPlataform.Middleware.ErrorHandlingMiddleware>();
 
-if (string.IsNullOrWhiteSpace(listenPort))
+if (string.IsNullOrWhiteSpace(configuredPort))
 {
     app.UseHttpsRedirection();
 }
@@ -179,6 +183,6 @@ if (string.IsNullOrWhiteSpace(listenPort))
 app.UseCors("AllowFrontend");
 app.UseAuthentication();
 app.UseAuthorization();
-app.MapGet("/health", () => Results.Ok(new { status = "ok" }));
+app.MapGet("/health", () => Results.Ok(new { status = "ok" })).AllowAnonymous();
 app.MapControllers();
 app.Run();

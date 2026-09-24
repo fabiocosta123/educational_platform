@@ -17,8 +17,9 @@ namespace EducationalPlataform.Factories
                 .AddEnvironmentVariables()
                 .Build();
 
-            var connectionString = configuration.GetConnectionString("EducationalPlataformContext")
-                ?? throw new InvalidOperationException("Connection string 'EducationalPlataformContext' not found.");
+            var connectionString = NpgsqlConnectionString.Normalize(
+                configuration.GetConnectionString("EducationalPlataformContext")
+                    ?? throw new InvalidOperationException("Connection string 'EducationalPlataformContext' not found."));
 
             var optionsBuilder = new DbContextOptionsBuilder<EducationalPlataformContext>();
             optionsBuilder.UseNpgsql(connectionString);
