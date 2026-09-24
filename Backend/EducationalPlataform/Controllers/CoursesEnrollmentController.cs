@@ -32,7 +32,9 @@ namespace EducationalPlataform.Controllers
         }
 
         [HttpGet]
-        public async Task<ActionResult<IEnumerable<CourseEnrollmentReadDto>>> GetAll([FromQuery] int? userId)
+        public async Task<ActionResult<IEnumerable<CourseEnrollmentReadDto>>> GetAll(
+            [FromQuery] int? userId,
+            [FromQuery] int? courseId)
         {
             if (!TryGetCurrentUserId(out var currentUserId))
                 return Unauthorized();
@@ -42,25 +44,36 @@ namespace EducationalPlataform.Controllers
                 .Include(e => e.Course)
                 .AsQueryable();
 
-            if (IsStaff())
+            var role = User.FindFirstValue(ClaimTypes.Role);
+            var isCoordinator = string.Equals(role, nameof(UserProfile.Coordinator), StringComparison.OrdinalIgnoreCase);
+            var isTeacher = string.Equals(role, nameof(UserProfile.Teacher), StringComparison.OrdinalIgnoreCase);
+
+            if (isTeacher)
+            {
+                query = query.Where(e => e.Course.TeacherId == currentUserId);
+                if (userId.HasValue)
+                    query = query.Where(e => e.UserId == userId.Value);
+            }
+            else if (isCoordinator)
             {
                 if (userId.HasValue)
-                {
                     query = query.Where(e => e.UserId == userId.Value);
-                }
             }
             else
             {
                 query = query.Where(e => e.UserId == currentUserId);
             }
 
+            if (courseId.HasValue)
+                query = query.Where(e => e.CourseId == courseId.Value);
+
             var enrollments = await query.ToListAsync();
 
             if (!IsStaff())
             {
-                foreach (var courseId in enrollments.Select(e => e.CourseId).Distinct())
+                foreach (var enrolledCourseId in enrollments.Select(e => e.CourseId).Distinct())
                 {
-                    await _enrollmentProgress.RecalculateCourseAsync(courseId);
+                    await _enrollmentProgress.RecalculateCourseAsync(enrolledCourseId);
                 }
 
                 await _context.SaveChangesAsync();
