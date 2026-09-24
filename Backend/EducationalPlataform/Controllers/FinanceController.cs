@@ -128,7 +128,9 @@ namespace EducationalPlataform.Controllers
                 .Include(p => p.User)
                 .Include(p => p.Course)
                 .ThenInclude(c => c.Teacher)
-                .OrderBy(p => p.DueDate)
+                .OrderByDescending(p => p.DueDate)
+                .ThenByDescending(p => p.PaidAt)
+                .ThenByDescending(p => p.Id)
                 .Select(p => new
                 {
                     p.Id,

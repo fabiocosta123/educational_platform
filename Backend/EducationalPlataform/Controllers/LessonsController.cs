@@ -250,8 +250,49 @@ namespace EducationalPlataform.Controllers
         }
 
 
-        // Altera 
+        [HttpPut("{id}/material")]
+        [RequestSizeLimit(10 * 1024 * 1024)]
+        public async Task<IActionResult> UpdateMaterial(int id, IFormFile material)
+        {
+            if (!TryGetUserId(out var userId))
+                return Unauthorized("Usuário não autenticado.");
 
+            if (material == null || material.Length == 0)
+                return BadRequest("Envie um arquivo PDF ou TXT.");
+
+            var lesson = await _context.Lessons
+                .Include(l => l.CourseModule)
+                    .ThenInclude(m => m.Course)
+                .FirstOrDefaultAsync(l => l.Id == id);
+
+            if (lesson == null)
+                return NotFound("Aula não encontrada.");
+
+            var userRole = User.FindFirstValue(ClaimTypes.Role);
+            if (userRole != "Coordinator" && lesson.CourseModule.Course.TeacherId != userId)
+                return Forbid("Você não tem permissão para alterar esta aula.");
+
+            var extension = Path.GetExtension(material.FileName).ToLowerInvariant();
+            if (extension is not ".pdf" and not ".txt")
+                return BadRequest("Formatos aceitos: PDF ou TXT.");
+
+            if (material.Length > 10 * 1024 * 1024)
+                return BadRequest("O arquivo deve ter no máximo 10 MB.");
+
+            var uploadsFolder = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot", "uploads", "lessons");
+            Directory.CreateDirectory(uploadsFolder);
+            var fileName = $"{Guid.NewGuid():N}{extension}";
+            var filePath = Path.Combine(uploadsFolder, fileName);
+
+            await using (var stream = System.IO.File.Create(filePath))
+            {
+                await material.CopyToAsync(stream);
+            }
+
+            lesson.PdfUrl = $"/uploads/lessons/{fileName}";
+            await _context.SaveChangesAsync();
+            return Ok(new { lesson.Id, pdfUrl = lesson.PdfUrl });
+        }
 
         [HttpPut("{id}")]
         public async Task<IActionResult> Update(
