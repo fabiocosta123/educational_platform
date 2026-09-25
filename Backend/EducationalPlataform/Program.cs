@@ -87,6 +87,7 @@ builder.Services.AddAuthorization();
 builder.Services.AddScoped<IUserService, UserService>();
 builder.Services.AddScoped<IJwtService, JwtService>();
 builder.Services.AddScoped<IEmailService, EmailService>();
+builder.Services.AddScoped<IPasswordResetService, PasswordResetService>();
 builder.Services.AddScoped<EnrollmentProgressService>();
 builder.Services.AddScoped<CertificateEligibilityService>();
 builder.Services.AddHostedService<DatabaseMigrationService>();

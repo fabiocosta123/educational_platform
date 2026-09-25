@@ -2,7 +2,6 @@
 using System.Net;
 using System.Net.Mail;
 
-
 namespace EducationalPlataform.Services
 {
     public class EmailService : IEmailService
@@ -17,21 +16,32 @@ namespace EducationalPlataform.Services
         public async Task SendAsync(string to, string subject, string body)
         {
             var smtpHost = _configuration["Smtp:Host"];
-            var smtpPort = int.Parse(_configuration["Smtp:Port"]);
             var smtpUser = _configuration["Smtp:User"];
             var smtpPass = _configuration["Smtp:Pass"];
             var fromEmail = _configuration["Smtp:From"];
 
-            using (var client = new SmtpClient(smtpHost, smtpPort))
+            if (string.IsNullOrWhiteSpace(smtpHost)
+                || string.IsNullOrWhiteSpace(smtpUser)
+                || string.IsNullOrWhiteSpace(smtpPass)
+                || smtpUser.Contains("seuemail", StringComparison.OrdinalIgnoreCase))
             {
-                client.EnableSsl = true;
-                client.Credentials = new NetworkCredential(smtpUser, smtpPass);
-
-                var mailMessage = new MailMessage(fromEmail, to, subject, body);
-                mailMessage.IsBodyHtml = false;
-
-                await client.SendMailAsync(mailMessage);
+                return;
             }
+
+            var smtpPort = int.Parse(_configuration["Smtp:Port"] ?? "587");
+
+            using var client = new SmtpClient(smtpHost, smtpPort)
+            {
+                EnableSsl = true,
+                Credentials = new NetworkCredential(smtpUser, smtpPass)
+            };
+
+            var mailMessage = new MailMessage(fromEmail ?? smtpUser, to, subject, body)
+            {
+                IsBodyHtml = false
+            };
+
+            await client.SendMailAsync(mailMessage);
         }
     }
 }

@@ -29,6 +29,7 @@ namespace EducationalPlataform.Data
         public DbSet<AssessmentAttempt> AssessmentAttempts => Set<AssessmentAttempt>();
         public DbSet<AssessmentAnswer> AssessmentAnswers => Set<AssessmentAnswer>();
         public DbSet<Certificate> Certificates => Set<Certificate>();
+        public DbSet<PasswordResetToken> PasswordResetTokens => Set<PasswordResetToken>();
 
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
@@ -45,6 +46,7 @@ namespace EducationalPlataform.Data
             ConfigureAnnouncement(modelBuilder);
             ConfigureAssessments(modelBuilder);
             ConfigureCertificate(modelBuilder);
+            ConfigurePasswordResetToken(modelBuilder);
         }
 
         private static void ConfigureLesson(ModelBuilder modelBuilder)
@@ -311,6 +313,19 @@ namespace EducationalPlataform.Data
                 entity.HasOne(c => c.Course)
                     .WithMany(c => c.Certificates)
                     .HasForeignKey(c => c.CourseId)
+                    .OnDelete(DeleteBehavior.Cascade);
+            });
+        }
+
+        private static void ConfigurePasswordResetToken(ModelBuilder modelBuilder)
+        {
+            modelBuilder.Entity<PasswordResetToken>(entity =>
+            {
+                entity.ToTable("PasswordResetTokens");
+                entity.HasIndex(t => t.Token).IsUnique();
+                entity.HasOne(t => t.User)
+                    .WithMany()
+                    .HasForeignKey(t => t.UserId)
                     .OnDelete(DeleteBehavior.Cascade);
             });
         }
