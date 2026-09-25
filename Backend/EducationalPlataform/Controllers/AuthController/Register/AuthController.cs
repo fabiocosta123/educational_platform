@@ -35,19 +35,26 @@ namespace EducationalPlataform.Controllers.AuthController.Register
         {
             if (!ModelState.IsValid) return BadRequest(ModelState);
 
-            if (await _context.Users.AnyAsync(u => u.UserName == dto.UserName))
-                return BadRequest(new { message = "Username already exists." });
+            if (string.IsNullOrWhiteSpace(dto.UserName) || string.IsNullOrWhiteSpace(dto.Password) || dto.Password.Length < 6)
+                return BadRequest(new { message = "Nome e senha (mínimo 6 caracteres) são obrigatórios." });
 
-            if (dto.Profile == 0)
-                return BadRequest(new { message = "Selecione um perfil válido" });
+            var email = dto.UserEmail?.Trim() ?? "";
+            if (await _context.Users.AnyAsync(u => u.UserName == dto.UserName.Trim()))
+                return BadRequest(new { message = "Este nome de usuário já existe." });
+
+            if (!string.IsNullOrWhiteSpace(email)
+                && await _context.Users.AnyAsync(u => u.UserEmail != null && u.UserEmail.ToLower() == email.ToLower()))
+                return BadRequest(new { message = "Este e-mail já está cadastrado. Faça login." });
 
             var user = new User
             {
-                UserName = dto.UserName,
-                UserEmail = dto.UserEmail,
-                CPF = dto.CPF,
+                UserName = dto.UserName.Trim(),
+                UserEmail = email,
+                CPF = string.IsNullOrWhiteSpace(dto.CPF) ? dto.CPF : CpfValidator.Format(dto.CPF),
+                PhoneNumber = dto.PhoneNumber,
                 BirthDate = dto.BirthDate,
-                Profile = (UserProfile)dto.Profile
+                Profile = UserProfile.Student,
+                Role = nameof(UserProfile.Student)
             };
 
             user.PasswordHash = _passwordHasher.HashPassword(user, dto.Password);
@@ -55,7 +62,7 @@ namespace EducationalPlataform.Controllers.AuthController.Register
             _context.Users.Add(user);
             await _context.SaveChangesAsync();
 
-            return Ok(new { message = "User registered successfully." });
+            return Ok(new { message = "Cadastro realizado com sucesso." });
         }
 
         [HttpPost("login")]
@@ -237,53 +244,33 @@ namespace EducationalPlataform.Controllers.AuthController.Register
                 dto.Password
             );
 
-            await using var transaction = await _context.Database.BeginTransactionAsync();
+            _context.Users.Add(user);
+            await _context.SaveChangesAsync();
 
-            try
+            var enrollment = new CourseEnrollment(
+                user.Id,
+                courseId
+            );
+
+            enrollment.Status = "Pending";
+            enrollment.ProgressPercentage = 0;
+            enrollment.CompletedLessons = 0;
+            enrollment.TotalLessons = course.Modules
+                .SelectMany(m => m.Lessons)
+                .Count();
+
+            _context.CourseEnrollments.Add(enrollment);
+            await _context.SaveChangesAsync();
+
+            return Ok(new
             {
-                // 7. Salva usuário
-                _context.Users.Add(user);
-                await _context.SaveChangesAsync();
-
-                // 8. Cria matrícula como Pending
-                var enrollment = new CourseEnrollment(
-                    user.Id,
-                    courseId
-                );
-
-                enrollment.Status = "Pending";
-                enrollment.ProgressPercentage = 0;
-                enrollment.CompletedLessons = 0;
-                enrollment.TotalLessons = course.Modules
-                    .SelectMany(m => m.Lessons)
-                    .Count();
-
-                _context.CourseEnrollments.Add(enrollment);
-
-                await _context.SaveChangesAsync();
-
-                // 9. Confirma transação
-                await transaction.CommitAsync();
-
-                return Ok(new
-                {
-                    message = "Cadastro realizado com sucesso.",
-                    userId = user.Id,
-                    enrollmentId = enrollment.Id,
-                    courseId = course.Id,
-                    courseTitle = course.Title,
-                    enrollmentStatus = enrollment.Status
-                });
-            }
-            catch
-            {
-                await transaction.RollbackAsync();
-
-                return StatusCode(500, new
-                {
-                    message = "Não foi possível realizar o cadastro."
-                });
-            }
+                message = "Cadastro realizado com sucesso.",
+                userId = user.Id,
+                enrollmentId = enrollment.Id,
+                courseId = course.Id,
+                courseTitle = course.Title,
+                enrollmentStatus = enrollment.Status
+            });
         }
 
 
