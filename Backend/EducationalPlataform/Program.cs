@@ -160,6 +160,10 @@ builder.Services.AddSwaggerGen(c =>
 var app = builder.Build();
 
 app.UseForwardedHeaders();
+
+var webRoot = app.Environment.WebRootPath
+    ?? Path.Combine(app.Environment.ContentRootPath, "wwwroot");
+Directory.CreateDirectory(Path.Combine(webRoot, "uploads", "lessons"));
 app.UseStaticFiles();
 
 // Pipeline

@@ -18,15 +18,27 @@ namespace EducationalPlataform.Controllers
         private readonly EducationalPlataformContext _context;
         private readonly IMapper _mapper;
         private readonly EnrollmentProgressService _enrollmentProgress;
+        private readonly IWebHostEnvironment _environment;
 
         public LessonsController(
             EducationalPlataformContext context,
             IMapper mapper,
-            EnrollmentProgressService enrollmentProgress)
+            EnrollmentProgressService enrollmentProgress,
+            IWebHostEnvironment environment)
         {
             _context = context;
             _mapper = mapper;
             _enrollmentProgress = enrollmentProgress;
+            _environment = environment;
+        }
+
+        private string LessonsUploadFolder()
+        {
+            var webRoot = _environment.WebRootPath
+                ?? Path.Combine(_environment.ContentRootPath, "wwwroot");
+            var folder = Path.Combine(webRoot, "uploads", "lessons");
+            Directory.CreateDirectory(folder);
+            return folder;
         }
 
         
@@ -182,13 +194,7 @@ namespace EducationalPlataform.Controllers
                         "O arquivo não pode ultrapassar 10 MB.");
                 }
 
-                var uploadsFolder = Path.Combine(
-                    Directory.GetCurrentDirectory(),
-                    "wwwroot",
-                    "uploads",
-                    "lessons");
-
-                Directory.CreateDirectory(uploadsFolder);
+                var uploadsFolder = LessonsUploadFolder();
 
                 var uniqueFileName =
                     $"{Guid.NewGuid():N}{extension}";
@@ -279,8 +285,7 @@ namespace EducationalPlataform.Controllers
             if (material.Length > 10 * 1024 * 1024)
                 return BadRequest("O arquivo deve ter no máximo 10 MB.");
 
-            var uploadsFolder = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot", "uploads", "lessons");
-            Directory.CreateDirectory(uploadsFolder);
+            var uploadsFolder = LessonsUploadFolder();
             var fileName = $"{Guid.NewGuid():N}{extension}";
             var filePath = Path.Combine(uploadsFolder, fileName);
 
