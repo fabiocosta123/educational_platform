@@ -14,6 +14,11 @@ namespace EducationalPlataform.Entities
         public DateTime? SettledAt { get; set; }
         public DateTime? DueDate { get; set; }
 
+        public string? PixInvoiceId { get; set; }
+        public string? PixTransactionId { get; set; }
+        public string? PixCopyPaste { get; set; }
+        public DateTime? PixExpiresAt { get; set; }
+
 
         //Relacionamentos
         public User User { get; set; }

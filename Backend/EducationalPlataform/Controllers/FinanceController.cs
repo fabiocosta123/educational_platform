@@ -20,10 +20,12 @@ namespace EducationalPlataform.Controllers
     public class FinanceController : ControllerBase
     {
         private readonly EducationalPlataformContext _context;
+        private readonly PaymentSettlementService _settlement;
 
-        public FinanceController(EducationalPlataformContext context)
+        public FinanceController(EducationalPlataformContext context, PaymentSettlementService settlement)
         {
             _context = context;
+            _settlement = settlement;
         }
 
 
@@ -40,39 +42,8 @@ namespace EducationalPlataform.Controllers
             _context.PaymentAudits.Add(audit);            
         }
 
-        private async Task ApplyPaidAndUnlockAsync(Payment payment, DateTime paidAt, string auditAction, string auditDetails)
-        {
-            payment.Status = PaymentStatus.Paid;
-            payment.PaidAt = paidAt;
-            payment.SettledAt = DateTime.Now;
-
-            var enrollment = await _context.CourseEnrollments
-                .FirstOrDefaultAsync(e =>
-                    e.UserId == payment.UserId &&
-                    e.CourseId == payment.CourseId);
-
-            if (enrollment == null)
-            {
-                enrollment = new CourseEnrollment
-                {
-                    UserId = payment.UserId,
-                    CourseId = payment.CourseId,
-                    Status = "Active",
-                    ProgressPercentage = 0,
-                    StartDate = DateTime.Now
-                };
-                _context.CourseEnrollments.Add(enrollment);
-            }
-            else
-            {
-                enrollment.Status = "Active";
-                enrollment.StartDate ??= DateTime.Now;
-                if (enrollment.ProgressPercentage < 0)
-                    enrollment.ProgressPercentage = 0;
-            }
-
-            RegisterAudit(payment.Id, auditAction, auditDetails);
-        }
+        private Task ApplyPaidAndUnlockAsync(Payment payment, DateTime paidAt, string auditAction, string auditDetails)
+            => _settlement.ApplyPaidAndUnlockAsync(payment, paidAt, auditAction, auditDetails);
 
 
 

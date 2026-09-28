@@ -90,6 +90,8 @@ builder.Services.AddScoped<IEmailService, EmailService>();
 builder.Services.AddScoped<IPasswordResetService, PasswordResetService>();
 builder.Services.AddScoped<EnrollmentProgressService>();
 builder.Services.AddScoped<CertificateEligibilityService>();
+builder.Services.AddScoped<PaymentSettlementService>();
+builder.Services.AddHttpClient<MyCreditClient>();
 builder.Services.AddHostedService<DatabaseMigrationService>();
 
 // CORS
