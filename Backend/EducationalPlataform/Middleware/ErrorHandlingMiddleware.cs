@@ -45,8 +45,8 @@ namespace EducationalPlataform.Middleware
                     break;
 
                 case InvalidOperationException:
-                    statusCode = StatusCodes.Status403Forbidden;
-                    response = new ErrorResponse(statusCode, "Forbidden operation.", ex.Message);
+                    statusCode = StatusCodes.Status502BadGateway;
+                    response = new ErrorResponse(statusCode, ex.Message, "Falha ao falar com o serviço de pagamento.");
                     break;
 
                 default:

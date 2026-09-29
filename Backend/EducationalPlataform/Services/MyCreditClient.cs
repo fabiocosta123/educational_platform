@@ -153,7 +153,7 @@ public sealed class MyCreditClient
             }
 
             var secret = Convert.ToBase64String(Encoding.UTF8.GetBytes($"{Cnpj}|{ResellerToken}"));
-            var url = $"{BaseUrl}/api/token/{Uri.EscapeDataString(secret)}";
+            var url = $"{BaseUrl}/api/token/{secret}";
             using var response = await _http.GetAsync(url, cancellationToken);
             var body = await response.Content.ReadAsStringAsync(cancellationToken);
             if (!response.IsSuccessStatusCode)

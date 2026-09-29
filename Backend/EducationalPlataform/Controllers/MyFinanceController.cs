@@ -108,19 +108,26 @@ namespace EducationalPlataform.Controllers
 
             if (!stillValid)
             {
-                var invoiceId = Guid.NewGuid().ToString();
-                var charge = await _myCredit.CreatePixChargeAsync(
-                    invoiceId,
-                    payment.Amount,
-                    payment.User.UserName ?? "Aluno",
-                    document,
-                    cancellationToken);
+                try
+                {
+                    var invoiceId = Guid.NewGuid().ToString();
+                    var charge = await _myCredit.CreatePixChargeAsync(
+                        invoiceId,
+                        payment.Amount,
+                        payment.User.UserName ?? "Aluno",
+                        document,
+                        cancellationToken);
 
-                payment.PixInvoiceId = invoiceId;
-                payment.PixTransactionId = charge.TransactionId;
-                payment.PixCopyPaste = charge.CopyPaste;
-                payment.PixExpiresAt = charge.ExpiresAt;
-                await _context.SaveChangesAsync(cancellationToken);
+                    payment.PixInvoiceId = invoiceId;
+                    payment.PixTransactionId = charge.TransactionId;
+                    payment.PixCopyPaste = charge.CopyPaste;
+                    payment.PixExpiresAt = charge.ExpiresAt;
+                    await _context.SaveChangesAsync(cancellationToken);
+                }
+                catch (InvalidOperationException ex)
+                {
+                    return StatusCode(502, new { message = ex.Message });
+                }
             }
 
             return Ok(PixPayload(payment, "Pague com o QR ou o copia e cola. Depois clique em Já paguei."));
