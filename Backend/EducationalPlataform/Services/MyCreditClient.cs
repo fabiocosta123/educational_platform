@@ -37,7 +37,10 @@ public sealed class MyCreditClient
 
     private string BaseUrl => (_configuration["MyCredit:BaseUrl"] ?? "").TrimEnd('/');
     private string Cnpj => Digits(_configuration["MyCredit:Cnpj"]);
-    private string ResellerToken => (_configuration["MyCredit:ResellerToken"] ?? "").Trim();
+    private string ResellerToken => (_configuration["MyCredit:ResellerToken"] ?? "")
+        .Trim()
+        .Trim('"')
+        .Trim('\'');
 
     public async Task<MyCreditCharge> CreatePixChargeAsync(
         string invoiceId,
@@ -153,7 +156,7 @@ public sealed class MyCreditClient
             }
 
             var secret = Convert.ToBase64String(Encoding.UTF8.GetBytes($"{Cnpj}|{ResellerToken}"));
-            var url = $"{BaseUrl}/api/token/{secret}";
+            var url = $"{BaseUrl}/api/token/{Uri.EscapeDataString(secret)}";
             using var response = await _http.GetAsync(url, cancellationToken);
             var body = await response.Content.ReadAsStringAsync(cancellationToken);
             if (!response.IsSuccessStatusCode)
