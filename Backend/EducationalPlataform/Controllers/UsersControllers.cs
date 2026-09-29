@@ -22,19 +22,22 @@ public class UsersController : ControllerBase
     private readonly IPasswordHasher<User> _passwordHasher;
     private readonly CourseInstallmentService _installments;
     private readonly EmailDeliverabilityService _emailCheck;
+    private readonly LatePaymentPolicyService _latePolicy;
 
     public UsersController(
         EducationalPlataformContext context,
         IMapper mapper,
         IPasswordHasher<User> passwordHasher,
         CourseInstallmentService installments,
-        EmailDeliverabilityService emailCheck)
+        EmailDeliverabilityService emailCheck,
+        LatePaymentPolicyService latePolicy)
     {
         _context = context;
         _mapper = mapper;
         _passwordHasher = passwordHasher;
         _installments = installments;
         _emailCheck = emailCheck;
+        _latePolicy = latePolicy;
     }
 
     [HttpGet]
@@ -56,6 +59,8 @@ public class UsersController : ControllerBase
 
         if (user == null)
             return NotFound($"Usuário com id {id} não encontrado");
+
+        await _latePolicy.ApplyForUserAsync(id);
 
         var userDto = _mapper.Map<UserReadDto>(user);
         return Ok(userDto);

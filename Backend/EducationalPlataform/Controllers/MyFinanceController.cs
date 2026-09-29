@@ -18,15 +18,18 @@ namespace EducationalPlataform.Controllers
         private readonly EducationalPlataformContext _context;
         private readonly MyCreditClient _myCredit;
         private readonly PaymentSettlementService _settlement;
+        private readonly LatePaymentPolicyService _latePolicy;
 
         public MyFinanceController(
             EducationalPlataformContext context,
             MyCreditClient myCredit,
-            PaymentSettlementService settlement)
+            PaymentSettlementService settlement,
+            LatePaymentPolicyService latePolicy)
         {
             _context = context;
             _myCredit = myCredit;
             _settlement = settlement;
+            _latePolicy = latePolicy;
         }
 
         [HttpGet]
@@ -35,6 +38,8 @@ namespace EducationalPlataform.Controllers
             var idClaim = User.FindFirstValue(ClaimTypes.NameIdentifier);
             if (string.IsNullOrEmpty(idClaim) || !int.TryParse(idClaim, out var userId))
                 return Unauthorized();
+
+            await _latePolicy.ApplyForUserAsync(userId);
 
             var today = DateTime.Today;
             var payments = await _context.Payments
@@ -52,6 +57,10 @@ namespace EducationalPlataform.Controllers
                     p.SettledAt,
                     CourseTitle = p.Course.Title,
                     p.InstallmentNumber,
+                    p.LateFeeApplied,
+                    AccessBlocked = p.Status == PaymentStatus.Pending
+                        && p.DueDate.HasValue
+                        && today > p.DueDate.Value.Date.AddDays(LatePaymentPolicyService.BlockAfterDays),
                     Bucket = p.Status == PaymentStatus.Paid
                         ? "paid"
                         : p.Status == PaymentStatus.Cancelled
@@ -64,8 +73,17 @@ namespace EducationalPlataform.Controllers
                 })
                 .ToListAsync();
 
+            var blockedCourses = payments
+                .Where(p => p.AccessBlocked)
+                .Select(p => p.CourseTitle)
+                .Distinct()
+                .ToList();
+
             return Ok(new
             {
+                accessBlocked = blockedCourses.Count > 0,
+                blockedCourses,
+                lateFeeAmount = LatePaymentPolicyService.LateFeeAmount,
                 overdue = payments.Where(p => p.Bucket == "overdue").ToList(),
                 open = payments.Where(p => p.Bucket == "open").ToList(),
                 upcoming = payments.Where(p => p.Bucket == "upcoming").ToList(),
@@ -80,6 +98,9 @@ namespace EducationalPlataform.Controllers
             var payment = await LoadOwnPaymentAsync(paymentId);
             if (payment == null)
                 return NotFound(new { message = "Cobrança não encontrada." });
+
+            await _latePolicy.ApplyForUserCourseAsync(payment.UserId, payment.CourseId, cancellationToken);
+            await _context.Entry(payment).ReloadAsync(cancellationToken);
 
             if (payment.Status == PaymentStatus.Paid)
                 return BadRequest(new { message = "Esta mensalidade já está paga." });

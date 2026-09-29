@@ -3,6 +3,7 @@ using EducationalPlataform.Data;
 using EducationalPlataform.DTOs;
 using EducationalPlataform.Entities;
 using EducationalPlataform.Models.Enums;
+using EducationalPlataform.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -26,11 +27,13 @@ namespace EducationalPlataform.Controllers
 
         private readonly EducationalPlataformContext _context;
         private readonly IMapper _mapper;
+        private readonly LatePaymentPolicyService _latePolicy;
 
-        public ForumController(EducationalPlataformContext context, IMapper mapper)
+        public ForumController(EducationalPlataformContext context, IMapper mapper, LatePaymentPolicyService latePolicy)
         {
             _context = context;
             _mapper = mapper;
+            _latePolicy = latePolicy;
         }
 
         [HttpGet("~/api/courses/{courseId:int}/forum/questions")]
@@ -328,6 +331,8 @@ namespace EducationalPlataform.Controllers
 
             if (course.TeacherId == userId || course.CreatorId == userId)
                 return true;
+
+            await _latePolicy.ApplyForUserCourseAsync(userId, course.Id);
 
             return await _context.CourseEnrollments.AnyAsync(e =>
                 e.UserId == userId &&

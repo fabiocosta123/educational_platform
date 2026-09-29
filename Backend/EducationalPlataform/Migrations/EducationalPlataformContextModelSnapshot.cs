@@ -612,6 +612,9 @@ namespace EducationalPlataform.Migrations
                     b.Property<int?>("InstallmentNumber")
                         .HasColumnType("integer");
 
+                    b.Property<bool>("LateFeeApplied")
+                        .HasColumnType("boolean");
+
                     b.Property<DateTime?>("PaidAt")
                         .HasColumnType("timestamp without time zone");
 

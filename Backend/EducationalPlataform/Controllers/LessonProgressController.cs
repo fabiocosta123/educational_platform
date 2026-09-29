@@ -2,6 +2,7 @@ using EducationalPlataform.Data;
 using EducationalPlataform.DTOs;
 using EducationalPlataform.Entities;
 using EducationalPlataform.Models.Enums;
+using EducationalPlataform.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -24,10 +25,12 @@ namespace EducationalPlataform.Controllers
         };
 
         private readonly EducationalPlataformContext _context;
+        private readonly LatePaymentPolicyService _latePolicy;
 
-        public LessonProgressController(EducationalPlataformContext context)
+        public LessonProgressController(EducationalPlataformContext context, LatePaymentPolicyService latePolicy)
         {
             _context = context;
+            _latePolicy = latePolicy;
         }
 
         [HttpGet("course/{courseId:int}")]
@@ -37,7 +40,7 @@ namespace EducationalPlataform.Controllers
                 return Unauthorized();
 
             if (!await CanAccessCourseAsync(userId, courseId))
-                return StatusCode(StatusCodes.Status403Forbidden, new { message = "Você não tem acesso a este curso." });
+                return await ForbiddenCourseAsync(userId, courseId);
 
             var progresses = await _context.LessonProgresses
                 .AsNoTracking()
@@ -71,7 +74,7 @@ namespace EducationalPlataform.Controllers
                 return NotFound("Aula não encontrada.");
 
             if (!await CanAccessCourseAsync(userId, lesson.CourseModule.CourseId))
-                return StatusCode(StatusCodes.Status403Forbidden, new { message = "Você não tem acesso a este curso." });
+                return await ForbiddenCourseAsync(userId, lesson.CourseModule.CourseId);
 
             var progress = await GetOrCreateProgressAsync(userId, lessonId);
             var incoming = Math.Max(0, dto.LastWatchedSecond);
@@ -112,7 +115,7 @@ namespace EducationalPlataform.Controllers
             var courseId = lesson.CourseModule.CourseId;
 
             if (!await CanAccessCourseAsync(userId, courseId))
-                return StatusCode(StatusCodes.Status403Forbidden, new { message = "Você não tem acesso a este curso." });
+                return await ForbiddenCourseAsync(userId, courseId);
 
             var progress = await GetOrCreateProgressAsync(userId, lessonId);
             var duration = lesson.DurationSeconds > 0 ? lesson.DurationSeconds : progress.TotalWatchedSeconds;
@@ -200,10 +203,27 @@ namespace EducationalPlataform.Controllers
                 return true;
             }
 
+            await _latePolicy.ApplyForUserCourseAsync(userId, courseId);
+
             return await _context.CourseEnrollments.AnyAsync(e =>
                 e.UserId == userId &&
                 e.CourseId == courseId &&
                 ActiveEnrollmentStatuses.Contains(e.Status));
+        }
+
+        private async Task<ActionResult> ForbiddenCourseAsync(int userId, int courseId)
+        {
+            var blocked = await _context.CourseEnrollments.AnyAsync(e =>
+                e.UserId == userId &&
+                e.CourseId == courseId &&
+                e.Status == LatePaymentPolicyService.BlockedStatus);
+
+            return StatusCode(StatusCodes.Status403Forbidden, new
+            {
+                message = blocked
+                    ? LatePaymentPolicyService.AccessBlockedMessage
+                    : "Você não tem acesso a este curso."
+            });
         }
 
         private bool TryGetUserId(out int userId)

@@ -14,6 +14,7 @@ namespace EducationalPlataform.Entities
         public DateTime? SettledAt { get; set; }
         public DateTime? DueDate { get; set; }
         public int? InstallmentNumber { get; set; }
+        public bool LateFeeApplied { get; set; }
 
         public string? PixInvoiceId { get; set; }
         public string? PixTransactionId { get; set; }

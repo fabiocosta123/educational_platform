@@ -55,6 +55,11 @@ public class EnrollmentProgressService
                 ? 0
                 : (int)Math.Round(100.0 * completed / publishedLessonIds.Count);
 
+            if (string.Equals(enrollment.Status, LatePaymentPolicyService.BlockedStatus, StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
             if (enrollment.ProgressPercentage >= 100 && ActiveStatuses.Contains(enrollment.Status))
             {
                 enrollment.Status = "Concluido";

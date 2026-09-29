@@ -2,6 +2,7 @@ using EducationalPlataform.Data;
 using EducationalPlataform.DTOs;
 using EducationalPlataform.Entities;
 using EducationalPlataform.Models.Enums;
+using EducationalPlataform.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -23,10 +24,12 @@ namespace EducationalPlataform.Controllers
         };
 
         private readonly EducationalPlataformContext _context;
+        private readonly LatePaymentPolicyService _latePolicy;
 
-        public AssessmentsController(EducationalPlataformContext context)
+        public AssessmentsController(EducationalPlataformContext context, LatePaymentPolicyService latePolicy)
         {
             _context = context;
+            _latePolicy = latePolicy;
         }
 
         [HttpGet]
@@ -70,6 +73,8 @@ namespace EducationalPlataform.Controllers
         {
             if (!TryGetUserId(out var userId))
                 return Unauthorized();
+
+            await _latePolicy.ApplyForUserAsync(userId);
 
             var courseIds = await _context.CourseEnrollments
                 .Where(e => e.UserId == userId && ActiveEnrollmentStatuses.Contains(e.Status))
@@ -558,6 +563,8 @@ namespace EducationalPlataform.Controllers
                     return true;
                 return await _context.Courses.AnyAsync(c => c.Id == courseId && c.TeacherId == userId);
             }
+
+            await _latePolicy.ApplyForUserCourseAsync(userId, courseId);
 
             return await _context.CourseEnrollments.AnyAsync(e =>
                 e.UserId == userId &&

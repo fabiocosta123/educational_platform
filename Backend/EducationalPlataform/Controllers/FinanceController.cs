@@ -22,15 +22,18 @@ namespace EducationalPlataform.Controllers
         private readonly EducationalPlataformContext _context;
         private readonly PaymentSettlementService _settlement;
         private readonly CourseInstallmentService _installments;
+        private readonly LatePaymentPolicyService _latePolicy;
 
         public FinanceController(
             EducationalPlataformContext context,
             PaymentSettlementService settlement,
-            CourseInstallmentService installments)
+            CourseInstallmentService installments,
+            LatePaymentPolicyService latePolicy)
         {
             _context = context;
             _settlement = settlement;
             _installments = installments;
+            _latePolicy = latePolicy;
         }
 
 
@@ -116,6 +119,7 @@ namespace EducationalPlataform.Controllers
                     p.PaidAt,
                     p.SettledAt,
                     p.InstallmentNumber,
+                    p.LateFeeApplied,
 
                     Course = new
                     {
@@ -181,6 +185,8 @@ namespace EducationalPlataform.Controllers
         [HttpGet("pix/history")]
         public async Task<IActionResult> GetFinancialHistory()
         {
+            await _latePolicy.ApplyAllPendingAsync();
+
             var activeStudents = await _context.CourseEnrollments
                 .Where(e => e.Status == "Active")
                 .Select(e => e.UserId)

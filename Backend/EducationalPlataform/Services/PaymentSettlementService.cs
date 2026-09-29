@@ -8,10 +8,12 @@ namespace EducationalPlataform.Services;
 public sealed class PaymentSettlementService
 {
     private readonly EducationalPlataformContext _context;
+    private readonly LatePaymentPolicyService _latePolicy;
 
-    public PaymentSettlementService(EducationalPlataformContext context)
+    public PaymentSettlementService(EducationalPlataformContext context, LatePaymentPolicyService latePolicy)
     {
         _context = context;
+        _latePolicy = latePolicy;
     }
 
     public async Task ApplyPaidAndUnlockAsync(
@@ -20,6 +22,18 @@ public sealed class PaymentSettlementService
         string auditAction,
         string auditDetails)
     {
+        var chargedLateFee = !payment.LateFeeApplied;
+        _latePolicy.EnsureLateFee(payment, paidAt);
+        if (chargedLateFee && payment.LateFeeApplied)
+        {
+            _context.PaymentAudits.Add(new PaymentAudit
+            {
+                PaymentId = payment.Id,
+                Action = "LateFeeApplied",
+                Details = $"Multa de atraso de {LatePaymentPolicyService.LateFeeAmount:0.00} aplicada uma vez."
+            });
+        }
+
         payment.Status = PaymentStatus.Paid;
         payment.PaidAt = paidAt;
         payment.SettledAt = DateTime.Now;
@@ -29,13 +43,28 @@ public sealed class PaymentSettlementService
                 e.UserId == payment.UserId &&
                 e.CourseId == payment.CourseId);
 
+        var remainingOverdue = await _context.Payments
+            .Where(p =>
+                p.UserId == payment.UserId &&
+                p.CourseId == payment.CourseId &&
+                p.Id != payment.Id &&
+                p.Status == PaymentStatus.Pending)
+            .ToListAsync();
+        var stillBlocked = remainingOverdue.Any(p =>
+            LatePaymentPolicyService.IsBlockingOverdue(p, DateTime.Today));
+        var nextStatus = stillBlocked
+            ? LatePaymentPolicyService.BlockedStatus
+            : enrollment is { ProgressPercentage: >= 100 }
+                ? "Concluido"
+                : "Active";
+
         if (enrollment == null)
         {
             enrollment = new CourseEnrollment
             {
                 UserId = payment.UserId,
                 CourseId = payment.CourseId,
-                Status = "Active",
+                Status = nextStatus,
                 ProgressPercentage = 0,
                 StartDate = DateTime.Now
             };
@@ -43,7 +72,7 @@ public sealed class PaymentSettlementService
         }
         else
         {
-            enrollment.Status = "Active";
+            enrollment.Status = nextStatus;
             enrollment.StartDate ??= DateTime.Now;
             if (enrollment.ProgressPercentage < 0)
                 enrollment.ProgressPercentage = 0;
