@@ -130,17 +130,20 @@ namespace EducationalPlataform.Controllers
             if (course == null)
                 return NotFound();
 
+            var teacherId = dto.TeacherId > 0 ? dto.TeacherId : course.TeacherId ?? 0;
+
             var teacher = await _context.Users
-                .FirstOrDefaultAsync(u =>
-                    u.Id == dto.TeacherId &&
-                    u.Profile == UserProfile.Teacher);
+                .FirstOrDefaultAsync(u => u.Id == teacherId);
 
             if (teacher == null)
-                return BadRequest("Professor não encontrado.");
+                return BadRequest(new { message = "Selecione um professor válido antes de salvar." });
+
+            if (teacher.Profile is not UserProfile.Teacher and not UserProfile.Coordinator)
+                return BadRequest(new { message = "O responsável pelo curso precisa ser professor ou coordenador." });
 
             course.Title = dto.Title;
             course.Description = dto.Description;
-            course.TeacherId = dto.TeacherId;
+            course.TeacherId = teacher.Id;
             course.Price = dto.Price;
             course.InstallmentCount = CourseInstallmentService.NormalizeInstallmentCount(dto.InstallmentCount ?? 12);
 
