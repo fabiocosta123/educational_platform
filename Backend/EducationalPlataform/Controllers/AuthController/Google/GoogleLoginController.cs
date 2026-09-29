@@ -62,6 +62,10 @@ namespace EducationalPlataform.AuthController
             {
                 return Unauthorized(new { message = "Token Google inválido." });
             }
+            catch (Exception)
+            {
+                return Unauthorized(new { message = "Não foi possível validar o login Google. Tente de novo." });
+            }
         }
 
         private async Task<GoogleJsonWebSignature.Payload> ValidateGoogleTokenAsync(string idToken)
