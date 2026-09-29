@@ -14,5 +14,10 @@ namespace EducationalPlataform.DTOs
 
         [Required(ErrorMessage = "Professor é obrigatório.")]
         public int TeacherId { get; set; }
+
+        [Range(0, 999999)]
+        public decimal Price { get; set; }
+
+        public int? InstallmentCount { get; set; }
     }
 }

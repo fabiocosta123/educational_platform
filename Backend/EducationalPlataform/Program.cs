@@ -91,7 +91,13 @@ builder.Services.AddScoped<IPasswordResetService, PasswordResetService>();
 builder.Services.AddScoped<EnrollmentProgressService>();
 builder.Services.AddScoped<CertificateEligibilityService>();
 builder.Services.AddScoped<PaymentSettlementService>();
+builder.Services.AddScoped<CourseInstallmentService>();
 builder.Services.AddHttpClient<MyCreditClient>();
+builder.Services.AddHttpClient<EmailDeliverabilityService>(client =>
+{
+    client.BaseAddress = new Uri("https://dns.google/");
+    client.Timeout = TimeSpan.FromSeconds(6);
+});
 builder.Services.AddHostedService<DatabaseMigrationService>();
 
 // CORS

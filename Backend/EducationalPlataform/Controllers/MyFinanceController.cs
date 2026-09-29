@@ -51,6 +51,7 @@ namespace EducationalPlataform.Controllers
                     p.PaidAt,
                     p.SettledAt,
                     CourseTitle = p.Course.Title,
+                    p.InstallmentNumber,
                     Bucket = p.Status == PaymentStatus.Paid
                         ? "paid"
                         : p.Status == PaymentStatus.Cancelled

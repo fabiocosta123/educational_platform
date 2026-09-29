@@ -77,6 +77,14 @@ namespace EducationalPlataform.Data
                .WithMany(u => u.CoursesTaught)
                .HasForeignKey(c => c.TeacherId)
                .OnDelete(DeleteBehavior.ClientNoAction);
+
+            modelBuilder.Entity<Course>()
+                .Property(c => c.Price)
+                .HasPrecision(10, 2);
+
+            modelBuilder.Entity<Course>()
+                .Property(c => c.InstallmentCount)
+                .HasDefaultValue(12);
         }
 
         public static void ConfigureLessonProgress(ModelBuilder modelBuilder)

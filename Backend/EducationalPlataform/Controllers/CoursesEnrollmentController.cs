@@ -20,15 +20,18 @@ namespace EducationalPlataform.Controllers
         private readonly EducationalPlataformContext _context;
         private readonly IMapper _mapper;
         private readonly EnrollmentProgressService _enrollmentProgress;
+        private readonly CourseInstallmentService _installments;
 
         public CoursesEnrollmentController(
             EducationalPlataformContext context,
             IMapper mapper,
-            EnrollmentProgressService enrollmentProgress)
+            EnrollmentProgressService enrollmentProgress,
+            CourseInstallmentService installments)
         {
             _context = context;
             _mapper = mapper;
             _enrollmentProgress = enrollmentProgress;
+            _installments = installments;
         }
 
         [HttpGet]
@@ -114,6 +117,12 @@ namespace EducationalPlataform.Controllers
         public async Task<ActionResult<CourseEnrollmentReadDto>> Create(
         [FromBody] CourseEnrollmentCreateDto dto)
         {
+            if (!TryGetCurrentUserId(out var currentUserId))
+                return Unauthorized();
+
+            if (!IsStaff())
+                dto.UserId = currentUserId;
+
             var existingEnrollment = await _context.CourseEnrollments
                 .FirstOrDefaultAsync(e =>
                     e.UserId == dto.UserId &&
@@ -130,8 +139,11 @@ namespace EducationalPlataform.Controllers
             }
 
             var enrollment = _mapper.Map<CourseEnrollment>(dto);
+            if (string.IsNullOrWhiteSpace(enrollment.Status))
+                enrollment.Status = "Pending";
 
             _context.CourseEnrollments.Add(enrollment);
+            await _installments.EnsureForEnrollmentAsync(enrollment.UserId, enrollment.CourseId);
             await _context.SaveChangesAsync();
 
             var enrollmentReadDto = _mapper.Map<CourseEnrollmentReadDto>(enrollment);

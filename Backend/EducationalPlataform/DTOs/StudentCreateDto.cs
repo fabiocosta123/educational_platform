@@ -6,6 +6,9 @@ namespace EducationalPlataform.DTOs
     public class StudentCreateDto
     {
         public string UserName { get; set; }
+
+        [Required(ErrorMessage = "E-mail é obrigatório.")]
+        [EmailAddress(ErrorMessage = "E-mail inválido.")]
         public string UserEmail { get; set; }
         [Required(ErrorMessage = "CPF é obrigatório.")]
         [Cpf]

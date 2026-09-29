@@ -19,6 +19,9 @@ namespace EducationalPlataform.Entities
         public int? TeacherId { get; set; }
         public User? Teacher { get; set; }
 
+        public decimal Price { get; set; }
+        public int InstallmentCount { get; set; } = 12;
+
 
 
 

@@ -21,11 +21,16 @@ namespace EducationalPlataform.Controllers
     {
         private readonly EducationalPlataformContext _context;
         private readonly PaymentSettlementService _settlement;
+        private readonly CourseInstallmentService _installments;
 
-        public FinanceController(EducationalPlataformContext context, PaymentSettlementService settlement)
+        public FinanceController(
+            EducationalPlataformContext context,
+            PaymentSettlementService settlement,
+            CourseInstallmentService installments)
         {
             _context = context;
             _settlement = settlement;
+            _installments = installments;
         }
 
 
@@ -110,6 +115,7 @@ namespace EducationalPlataform.Controllers
                     p.DueDate,
                     p.PaidAt,
                     p.SettledAt,
+                    p.InstallmentNumber,
 
                     Course = new
                     {
@@ -124,6 +130,14 @@ namespace EducationalPlataform.Controllers
                         UserName = p.User.UserName
                     }
                 });
+        }
+
+        private async Task<int> NextInstallmentNumberAsync(int userId, int courseId)
+        {
+            var max = await _context.Payments
+                .Where(p => p.UserId == userId && p.CourseId == courseId && p.InstallmentNumber != null)
+                .MaxAsync(p => (int?)p.InstallmentNumber);
+            return (max ?? 0) + 1;
         }
 
         #endregion
@@ -244,7 +258,8 @@ namespace EducationalPlataform.Controllers
                 CourseId = course.Id,
                 Amount = dto.Amount,
                 Status = PaymentStatus.Pending,
-                DueDate = dto.DueDate
+                DueDate = dto.DueDate,
+                InstallmentNumber = await NextInstallmentNumberAsync(user.Id, course.Id)
             };
 
             _context.Payments.Add(payment);
@@ -267,9 +282,50 @@ namespace EducationalPlataform.Controllers
             return Ok(response);
         }
 
+        [HttpPut("pix/{paymentId:int}/amount")]
+        public async Task<IActionResult> UpdateAmount(int paymentId, [FromBody] UpdatePaymentAmountDto dto)
+        {
+            if (dto.Amount < 0.01m)
+                return BadRequest(new { message = "Informe um valor maior que zero." });
 
+            var payment = await _context.Payments.FirstOrDefaultAsync(p => p.Id == paymentId);
+            if (payment == null)
+                return NotFound(new { message = "Cobrança não encontrada." });
 
+            if (payment.Status == PaymentStatus.Paid)
+                return BadRequest(new { message = "Não é possível alterar o valor de uma mensalidade já paga." });
 
+            if (payment.Status == PaymentStatus.Cancelled)
+                return BadRequest(new { message = "Esta cobrança foi cancelada." });
+
+            var previous = payment.Amount;
+            payment.Amount = dto.Amount;
+            payment.PixCopyPaste = null;
+            payment.PixInvoiceId = null;
+            payment.PixTransactionId = null;
+            payment.PixExpiresAt = null;
+
+            RegisterAudit(
+                payment.Id,
+                "AmountUpdated",
+                $"Valor alterado de {previous:0.00} para {dto.Amount:0.00}.");
+            await _context.SaveChangesAsync();
+
+            return Ok(new { payment.Id, payment.Amount });
+        }
+
+        [HttpPost("pix/plan")]
+        public async Task<IActionResult> GenerateInstallmentPlan([FromBody] CourseEnrollmentCreateDto dto)
+        {
+            var enrollment = await _context.CourseEnrollments
+                .FirstOrDefaultAsync(e => e.UserId == dto.UserId && e.CourseId == dto.CourseId);
+            if (enrollment == null)
+                return NotFound(new { message = "Matrícula não encontrada." });
+
+            await _installments.EnsureForEnrollmentAsync(dto.UserId, dto.CourseId);
+            await _context.SaveChangesAsync();
+            return Ok(new { message = "Plano de mensalidades gerado (se o curso tiver preço e ainda não existia cobrança)." });
+        }
 
         // Confirma pagamento PIX
         [HttpPost("pix/confirm/{paymentId}")]

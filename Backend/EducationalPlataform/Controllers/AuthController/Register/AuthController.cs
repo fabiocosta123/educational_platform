@@ -2,6 +2,7 @@
 using EducationalPlataform.DTOs;
 using EducationalPlataform.Entities;
 using EducationalPlataform.Models.Enums;
+using EducationalPlataform.Services;
 using EducationalPlataform.Validation;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
@@ -21,12 +22,21 @@ namespace EducationalPlataform.Controllers.AuthController.Register
         private readonly EducationalPlataformContext _context;
         private readonly IConfiguration _configuration;
         private readonly IPasswordHasher<User> _passwordHasher;
+        private readonly CourseInstallmentService _installments;
+        private readonly EmailDeliverabilityService _emailCheck;
 
-        public AuthController(EducationalPlataformContext context, IConfiguration configuration, IPasswordHasher<User> passwordHasher)
+        public AuthController(
+            EducationalPlataformContext context,
+            IConfiguration configuration,
+            IPasswordHasher<User> passwordHasher,
+            CourseInstallmentService installments,
+            EmailDeliverabilityService emailCheck)
         {
             _context = context;
             _configuration = configuration;
             _passwordHasher = passwordHasher;
+            _installments = installments;
+            _emailCheck = emailCheck;
         }
 
         [HttpPost("register")]
@@ -39,6 +49,12 @@ namespace EducationalPlataform.Controllers.AuthController.Register
                 return BadRequest(new { message = "Nome e senha (mínimo 6 caracteres) são obrigatórios." });
 
             var email = dto.UserEmail?.Trim() ?? "";
+            if (string.IsNullOrWhiteSpace(email))
+                return BadRequest(new { message = "Informe um e-mail." });
+
+            var emailError = await _emailCheck.ValidateAsync(email);
+            if (emailError != null)
+                return BadRequest(new { message = emailError });
             if (await _context.Users.AnyAsync(u => u.UserName == dto.UserName.Trim()))
                 return BadRequest(new { message = "Este nome de usuário já existe." });
 
@@ -164,6 +180,10 @@ namespace EducationalPlataform.Controllers.AuthController.Register
             var formattedCpf = CpfValidator.Format(dto.CPF);
             var email = dto.UserEmail.Trim();
 
+            var emailError = await _emailCheck.ValidateAsync(email);
+            if (emailError != null)
+                return BadRequest(new { message = emailError });
+
             // 1. Verifica se o curso existe
 
             var course = await _context.Courses
@@ -260,16 +280,28 @@ namespace EducationalPlataform.Controllers.AuthController.Register
                 .Count();
 
             _context.CourseEnrollments.Add(enrollment);
+            await _installments.EnsureForEnrollmentAsync(user.Id, course.Id);
             await _context.SaveChangesAsync();
+
+            var firstPayment = await _context.Payments
+                .Where(p =>
+                    p.UserId == user.Id &&
+                    p.CourseId == course.Id &&
+                    p.InstallmentNumber == 1 &&
+                    p.Status == PaymentStatus.Pending)
+                .OrderBy(p => p.Id)
+                .FirstOrDefaultAsync();
 
             return Ok(new
             {
-                message = "Cadastro realizado com sucesso.",
+                message = "Cadastro realizado com sucesso. Pague a primeira parcela para liberar o curso.",
                 userId = user.Id,
                 enrollmentId = enrollment.Id,
                 courseId = course.Id,
                 courseTitle = course.Title,
-                enrollmentStatus = enrollment.Status
+                enrollmentStatus = enrollment.Status,
+                firstPaymentId = firstPayment?.Id,
+                token = GenerateJwtToken(user)
             });
         }
 

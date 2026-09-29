@@ -3,6 +3,7 @@ using EducationalPlataform.Data;
 using EducationalPlataform.DTOs;
 using EducationalPlataform.Entities;
 using EducationalPlataform.Models.Enums;
+using EducationalPlataform.Services;
 using EducationalPlataform.Validation;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
@@ -19,15 +20,18 @@ namespace EducationalPlataform.Controllers
         private readonly EducationalPlataformContext _context;
         private readonly IMapper _mapper;
         private readonly IPasswordHasher<User> _passwordHasher;
+        private readonly EmailDeliverabilityService _emailCheck;
 
         public TeacherController(
             EducationalPlataformContext context,
             IMapper mapper,
-            IPasswordHasher<User> passwordHasher)
+            IPasswordHasher<User> passwordHasher,
+            EmailDeliverabilityService emailCheck)
         {
             _context = context;
             _mapper = mapper;
             _passwordHasher = passwordHasher;
+            _emailCheck = emailCheck;
         }
 
         [HttpGet("{teacherId}/dashboard")]
@@ -130,6 +134,10 @@ namespace EducationalPlataform.Controllers
             if (!CpfValidator.IsValid(dto.CPF))
                 return BadRequest(new { message = "CPF inválido." });
 
+            var emailError = await _emailCheck.ValidateAsync(dto.UserEmail);
+            if (emailError != null)
+                return BadRequest(new { message = emailError });
+
             var teacher = new User
             {
                 UserName = dto.UserName.Trim(),
@@ -179,6 +187,10 @@ namespace EducationalPlataform.Controllers
 
             if (!string.IsNullOrWhiteSpace(dto.Password) && dto.Password.Length < 6)
                 return BadRequest(new { message = "A senha deve ter no mínimo 6 caracteres." });
+
+            var emailError = await _emailCheck.ValidateAsync(dto.UserEmail);
+            if (emailError != null)
+                return BadRequest(new { message = emailError });
 
             teacher.UserName = dto.UserName.Trim();
             teacher.UserEmail = dto.UserEmail.Trim();

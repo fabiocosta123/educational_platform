@@ -8,6 +8,8 @@ namespace EducationalPlataform.DTOs
     {
         public string UserName { get; set; }
         public string Password { get; set; }
+        [Required(ErrorMessage = "E-mail é obrigatório.")]
+        [EmailAddress(ErrorMessage = "E-mail inválido.")]
         public string UserEmail { get; set; }
         [Cpf(AllowEmpty = true)]
         public string CPF {  get; set; }

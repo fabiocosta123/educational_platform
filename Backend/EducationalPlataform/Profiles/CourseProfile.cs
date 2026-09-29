@@ -1,6 +1,7 @@
 ﻿using AutoMapper;
 using EducationalPlataform.DTOs;
 using EducationalPlataform.Entities;
+using EducationalPlataform.Services;
 
 namespace EducationalPlataform.Profiles
 {
@@ -18,6 +19,17 @@ namespace EducationalPlataform.Profiles
             // Entity -> DTO
 
             CreateMap<Course, CourseReadDto>()
+                .ForMember(dest => dest.InstallmentCount,
+                    opt => opt.MapFrom(src =>
+                        src.InstallmentCount < 1 ? 12 : src.InstallmentCount))
+                .ForMember(dest => dest.InstallmentAmount,
+                    opt => opt.MapFrom(src =>
+                        src.Price <= 0
+                            ? 0
+                            : CourseInstallmentService.SplitAmount(
+                                src.Price,
+                                src.InstallmentCount < 1 ? 12 : src.InstallmentCount)
+                              .FirstOrDefault()))
 
                 .ForMember(dest => dest.TeacherName,
                     opt => opt.MapFrom(src =>

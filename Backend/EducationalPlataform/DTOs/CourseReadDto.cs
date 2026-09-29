@@ -8,7 +8,15 @@
 
         public string? Description { get; set; }
 
+        public int? TeacherId { get; set; }
+
         public string? TeacherName { get; set; }
+
+        public decimal Price { get; set; }
+
+        public int InstallmentCount { get; set; }
+
+        public decimal InstallmentAmount { get; set; }
 
         public int LessonsCount { get; set; }
 

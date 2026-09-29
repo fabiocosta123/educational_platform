@@ -7,6 +7,7 @@ using Microsoft.AspNetCore.Authorization;
 using System.Security.Claims;
 using Microsoft.EntityFrameworkCore;
 using EducationalPlataform.Models.Enums;
+using EducationalPlataform.Services;
 
 namespace EducationalPlataform.Controllers
 {
@@ -55,6 +56,7 @@ namespace EducationalPlataform.Controllers
 
 
 
+        [AllowAnonymous]
         [HttpGet("{id}")]
         public async Task<ActionResult<CourseReadDto>> GetById(int id)
         {
@@ -95,6 +97,7 @@ namespace EducationalPlataform.Controllers
             var course = _mapper.Map<Course>(dto);
 
             course.TeacherId = teacher.Id;
+            course.InstallmentCount = CourseInstallmentService.NormalizeInstallmentCount(dto.InstallmentCount ?? 12);
 
             var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
 
@@ -138,6 +141,8 @@ namespace EducationalPlataform.Controllers
             course.Title = dto.Title;
             course.Description = dto.Description;
             course.TeacherId = dto.TeacherId;
+            course.Price = dto.Price;
+            course.InstallmentCount = CourseInstallmentService.NormalizeInstallmentCount(dto.InstallmentCount ?? 12);
 
             await _context.SaveChangesAsync();
 

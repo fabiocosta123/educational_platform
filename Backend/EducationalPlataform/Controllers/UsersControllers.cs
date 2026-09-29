@@ -3,6 +3,7 @@ using EducationalPlataform.Data;
 using EducationalPlataform.DTOs;
 using EducationalPlataform.Entities;
 using EducationalPlataform.Models.Enums;
+using EducationalPlataform.Services;
 using EducationalPlataform.Validation;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
@@ -19,15 +20,21 @@ public class UsersController : ControllerBase
     private readonly EducationalPlataformContext _context;
     private readonly IMapper _mapper;
     private readonly IPasswordHasher<User> _passwordHasher;
+    private readonly CourseInstallmentService _installments;
+    private readonly EmailDeliverabilityService _emailCheck;
 
     public UsersController(
         EducationalPlataformContext context,
         IMapper mapper,
-        IPasswordHasher<User> passwordHasher)
+        IPasswordHasher<User> passwordHasher,
+        CourseInstallmentService installments,
+        EmailDeliverabilityService emailCheck)
     {
         _context = context;
         _mapper = mapper;
         _passwordHasher = passwordHasher;
+        _installments = installments;
+        _emailCheck = emailCheck;
     }
 
     [HttpGet]
@@ -104,7 +111,7 @@ public class UsersController : ControllerBase
 
 
     [HttpPost("students")]
-    public ActionResult<UserReadDto> CreateStudent([FromBody] StudentCreateDto dto)
+    public async Task<ActionResult<UserReadDto>> CreateStudent([FromBody] StudentCreateDto dto)
     {
 
         var today = DateTime.Today;
@@ -123,6 +130,10 @@ public class UsersController : ControllerBase
 
         if (!CpfValidator.IsValid(dto.CPF))
             return BadRequest("CPF inválido.");
+
+        var emailError = await _emailCheck.ValidateAsync(dto.UserEmail);
+        if (emailError != null)
+            return BadRequest(emailError);
 
         var student = new User
         {
@@ -150,7 +161,8 @@ public class UsersController : ControllerBase
         };
 
         _context.CourseEnrollments.Add(enrollment);
-        _context.SaveChanges();
+        await _installments.EnsureForEnrollmentAsync(student.Id, dto.CourseId);
+        await _context.SaveChangesAsync();
 
         var studentDto = _mapper.Map<UserReadDto>(student);
         return CreatedAtAction(nameof(GetById), new { id = student.Id }, studentDto);
@@ -202,6 +214,10 @@ public class UsersController : ControllerBase
                 Console.WriteLine("Aluno não encontrado.");
                 return NotFound();
             }
+
+            var emailError = await _emailCheck.ValidateAsync(dto.UserEmail);
+            if (emailError != null)
+                return BadRequest(emailError);
 
             if (!string.IsNullOrWhiteSpace(dto.Password))
             {
@@ -308,6 +324,18 @@ public class UsersController : ControllerBase
 
             _context.CourseEnrollments.Add(newEnrollment);
 
+            var oldPending = await _context.Payments
+                .Where(p =>
+                    p.UserId == id &&
+                    p.CourseId == dto.CurrentCourseId &&
+                    p.Status == PaymentStatus.Pending)
+                .ToListAsync();
+            foreach (var payment in oldPending)
+            {
+                payment.Status = PaymentStatus.Cancelled;
+            }
+
+            await _installments.EnsureForEnrollmentAsync(id, dto.NewCourseId);
             await _context.SaveChangesAsync();
 
             return Ok();

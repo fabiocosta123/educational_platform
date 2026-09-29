@@ -13,6 +13,7 @@ namespace EducationalPlataform.Entities
         public DateTime? PaidAt { get; set; }
         public DateTime? SettledAt { get; set; }
         public DateTime? DueDate { get; set; }
+        public int? InstallmentNumber { get; set; }
 
         public string? PixInvoiceId { get; set; }
         public string? PixTransactionId { get; set; }

@@ -272,6 +272,15 @@ namespace EducationalPlataform.Migrations
                     b.Property<string>("Description")
                         .HasColumnType("text");
 
+                    b.Property<int>("InstallmentCount")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(12);
+
+                    b.Property<decimal>("Price")
+                        .HasPrecision(10, 2)
+                        .HasColumnType("numeric(10,2)");
+
                     b.Property<int?>("TeacherId")
                         .HasColumnType("integer");
 
@@ -599,6 +608,9 @@ namespace EducationalPlataform.Migrations
 
                     b.Property<DateTime?>("DueDate")
                         .HasColumnType("timestamp without time zone");
+
+                    b.Property<int?>("InstallmentNumber")
+                        .HasColumnType("integer");
 
                     b.Property<DateTime?>("PaidAt")
                         .HasColumnType("timestamp without time zone");
