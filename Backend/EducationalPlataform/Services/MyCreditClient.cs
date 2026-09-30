@@ -345,7 +345,11 @@ public sealed class MyCreditClient
                 TokenSource);
 
             var secret = Convert.ToBase64String(Encoding.UTF8.GetBytes($"{Cnpj}|{ResellerToken}"));
-            var url = $"{BaseUrl}/api/token/{EncodeSecretForPath(secret)}";
+            var url = BuildTokenUri(BaseUrl, secret);
+            _logger.LogInformation(
+                "MyCredit token GET path length {PathLength}, base64 hasSlash={HasSlash}",
+                url.AbsolutePath.Length,
+                secret.Contains('/'));
             using var request = new HttpRequestMessage(HttpMethod.Get, url);
             request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
 
@@ -399,6 +403,17 @@ public sealed class MyCreditClient
 
     internal static string EncodeSecretForPath(string base64)
         => base64.Replace("+", "%2B").Replace("/", "%2F");
+
+    /// <summary>
+    /// HttpClient otherwise unescapes %2F back to /, splitting the Base64 secret into extra path segments.
+    /// </summary>
+    internal static Uri BuildTokenUri(string baseUrl, string base64Secret)
+    {
+        var encoded = EncodeSecretForPath(base64Secret);
+        return new Uri(
+            $"{baseUrl.TrimEnd('/')}/api/token/{encoded}",
+            new UriCreationOptions { DangerousDisablePathAndQueryCanonicalization = true });
+    }
 
     internal static string FormatDueDate(DateTime? dueDate)
     {
