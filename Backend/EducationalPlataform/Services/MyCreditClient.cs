@@ -1,4 +1,3 @@
-using System.Net.Http.Json;
 using System.Net;
 using System.Net.Http.Headers;
 using System.Text;
@@ -70,7 +69,10 @@ public sealed class MyCreditClient
 
         using var request = new HttpRequestMessage(HttpMethod.Post, $"{BaseUrl}/api/pix")
         {
-            Content = JsonContent.Create(payload)
+            Content = new StringContent(
+                JsonSerializer.Serialize(payload),
+                Encoding.UTF8,
+                "application/json")
         };
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
 
@@ -79,16 +81,18 @@ public sealed class MyCreditClient
         if (!response.IsSuccessStatusCode)
         {
             _logger.LogWarning("MyCredit create PIX failed: {Status} {Body}", (int)response.StatusCode, body);
-            throw new InvalidOperationException(ExtractError(body) ?? "A MyCredit recusou a cobrança PIX.");
+            throw new InvalidOperationException(
+                $"MyCredit {(int)response.StatusCode}: {ExtractError(body) ?? "A MyCredit recusou a cobrança PIX."}");
+        }
+
+        var copyPaste = ReadRetUrl(body);
+        if (string.IsNullOrWhiteSpace(copyPaste))
+        {
+            throw new InvalidOperationException(
+                $"MyCredit 200 sem código PIX: {(body.Length > 400 ? body[..400] : body)}");
         }
 
         var parsed = JsonSerializer.Deserialize<MyCreditEnvelope<MyCreditChargeData>>(body, JsonOptions);
-        var copyPaste = parsed?.Data?.RetUrl;
-        if (string.IsNullOrWhiteSpace(copyPaste))
-        {
-            throw new InvalidOperationException("A MyCredit não retornou o código PIX.");
-        }
-
         return new MyCreditCharge(
             copyPaste,
             parsed?.Data?.TransacaoId,
@@ -204,7 +208,8 @@ public sealed class MyCreditClient
                     "MyCredit token failed: {Status} {Error}",
                     (int)response.StatusCode,
                     ExtractError(body) ?? body);
-                throw new InvalidOperationException(ExtractError(body) ?? "Não foi possível autenticar na MyCredit.");
+                throw new InvalidOperationException(
+                    $"MyCredit token {(int)response.StatusCode}: {ExtractError(body) ?? "Não foi possível autenticar na MyCredit."}");
             }
 
             var token = ExtractToken(body);
@@ -236,6 +241,11 @@ public sealed class MyCreditClient
 
         using var doc = JsonDocument.Parse(body);
         var root = doc.RootElement;
+        if (root.TryGetProperty("data", out var data) && data.ValueKind == JsonValueKind.String)
+        {
+            return data.GetString() ?? "";
+        }
+
         foreach (var name in new[] { "token", "access_token", "accessToken", "bearerToken", "bearer", "jwt" })
         {
             if (root.TryGetProperty(name, out var value) && value.ValueKind == JsonValueKind.String)
@@ -244,13 +254,8 @@ public sealed class MyCreditClient
             }
         }
 
-        if (root.TryGetProperty("data", out var data))
+        if (root.TryGetProperty("data", out data) && data.ValueKind == JsonValueKind.Object)
         {
-            if (data.ValueKind == JsonValueKind.String)
-            {
-                return data.GetString() ?? "";
-            }
-
             foreach (var name in new[] { "token", "access_token", "accessToken", "bearerToken", "bearer" })
             {
                 if (data.TryGetProperty(name, out var nested) && nested.ValueKind == JsonValueKind.String)
@@ -261,6 +266,25 @@ public sealed class MyCreditClient
         }
 
         return "";
+    }
+
+    private static string? ReadRetUrl(string body)
+    {
+        try
+        {
+            using var doc = JsonDocument.Parse(body);
+            if (doc.RootElement.TryGetProperty("data", out var data) && data.ValueKind == JsonValueKind.Object
+                && data.TryGetProperty("retUrl", out var retUrl) && retUrl.ValueKind == JsonValueKind.String)
+            {
+                return retUrl.GetString();
+            }
+        }
+        catch (JsonException)
+        {
+            // ignore
+        }
+
+        return null;
     }
 
     private static string? ExtractError(string body)
