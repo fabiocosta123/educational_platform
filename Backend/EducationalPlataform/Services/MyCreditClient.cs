@@ -59,8 +59,7 @@ public sealed class MyCreditClient
                 tpTransacao = 11,
                 idFaturaPag = invoiceId,
                 modPagamento = 18,
-                qtdParcelas = 1,
-                valorPagamento = amount
+                valorPagamento = decimal.Round(amount, 2, MidpointRounding.AwayFromZero)
             },
             cliente = new
             {
