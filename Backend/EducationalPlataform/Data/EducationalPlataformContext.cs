@@ -13,13 +13,32 @@ namespace EducationalPlataform.Data
         public override int SaveChanges(bool acceptAllChangesOnSuccess)
         {
             PostgresDateTimes.NormalizeTracked(this);
-            return base.SaveChanges(acceptAllChangesOnSuccess);
+            try
+            {
+                return base.SaveChanges(acceptAllChangesOnSuccess);
+            }
+            catch (Exception ex) when (PostgresDateTimes.IsMissingLateFeeColumn(ex))
+            {
+                Database.ExecuteSqlRaw(
+                    """ALTER TABLE "Payments" ADD COLUMN IF NOT EXISTS "LateFeeApplied" boolean NOT NULL DEFAULT false;""");
+                return base.SaveChanges(acceptAllChangesOnSuccess);
+            }
         }
 
-        public override Task<int> SaveChangesAsync(bool acceptAllChangesOnSuccess, CancellationToken cancellationToken = default)
+        public override async Task<int> SaveChangesAsync(bool acceptAllChangesOnSuccess, CancellationToken cancellationToken = default)
         {
             PostgresDateTimes.NormalizeTracked(this);
-            return base.SaveChangesAsync(acceptAllChangesOnSuccess, cancellationToken);
+            try
+            {
+                return await base.SaveChangesAsync(acceptAllChangesOnSuccess, cancellationToken);
+            }
+            catch (Exception ex) when (PostgresDateTimes.IsMissingLateFeeColumn(ex))
+            {
+                await Database.ExecuteSqlRawAsync(
+                    """ALTER TABLE "Payments" ADD COLUMN IF NOT EXISTS "LateFeeApplied" boolean NOT NULL DEFAULT false;""",
+                    cancellationToken);
+                return await base.SaveChangesAsync(acceptAllChangesOnSuccess, cancellationToken);
+            }
         }
 
         public DbSet<User> Users => Set<User>();

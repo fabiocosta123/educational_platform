@@ -99,7 +99,6 @@ builder.Services.AddHttpClient<EmailDeliverabilityService>(client =>
     client.BaseAddress = new Uri("https://dns.google/");
     client.Timeout = TimeSpan.FromSeconds(6);
 });
-builder.Services.AddHostedService<DatabaseMigrationService>();
 
 // CORS
 var configuredOrigins = builder.Configuration["Cors:AllowedOrigins"]?
@@ -167,6 +166,14 @@ builder.Services.AddSwaggerGen(c =>
 });
 
 var app = builder.Build();
+
+using (var scope = app.Services.CreateScope())
+{
+    var db = scope.ServiceProvider.GetRequiredService<EducationalPlataformContext>();
+    db.Database.Migrate();
+    db.Database.ExecuteSqlRaw(
+        """ALTER TABLE "Payments" ADD COLUMN IF NOT EXISTS "LateFeeApplied" boolean NOT NULL DEFAULT false;""");
+}
 
 app.UseForwardedHeaders();
 

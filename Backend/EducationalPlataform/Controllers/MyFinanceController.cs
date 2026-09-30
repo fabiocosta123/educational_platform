@@ -106,7 +106,7 @@ namespace EducationalPlataform.Controllers
             }
             catch (DbUpdateException ex)
             {
-                return StatusCode(500, new { message = PostgresDateTimes.Describe(ex) });
+                return StatusCode(500, new { message = PostgresDateTimes.ForClient(ex) });
             }
 
             if (payment.Status == PaymentStatus.Paid)
@@ -136,29 +136,49 @@ namespace EducationalPlataform.Controllers
 
             if (!stillValid)
             {
+                MyCreditCharge charge;
+                string invoiceId;
                 try
                 {
-                    var invoiceId = Guid.NewGuid().ToString();
-                    var charge = await _myCredit.CreatePixChargeAsync(
+                    invoiceId = Guid.NewGuid().ToString();
+                    charge = await _myCredit.CreatePixChargeAsync(
                         invoiceId,
                         payment.Amount,
                         payment.User.UserName ?? "Aluno",
                         document,
                         cancellationToken);
-
-                    payment.PixInvoiceId = invoiceId;
-                    payment.PixTransactionId = charge.TransactionId;
-                    payment.PixCopyPaste = charge.CopyPaste;
-                    payment.PixExpiresAt = PostgresDateTimes.Unspecified(charge.ExpiresAt);
-                    await _context.SaveChangesAsync(cancellationToken);
                 }
                 catch (InvalidOperationException ex)
                 {
                     return StatusCode(502, new { message = ex.Message });
                 }
-                catch (DbUpdateException ex)
+
+                try
                 {
-                    return StatusCode(500, new { message = PostgresDateTimes.Describe(ex) });
+                    if (payment.User != null)
+                        _context.Entry(payment.User).State = EntityState.Unchanged;
+                    if (payment.Course != null)
+                        _context.Entry(payment.Course).State = EntityState.Unchanged;
+
+                    var expiresAt = PostgresDateTimes.Unspecified(charge.ExpiresAt)
+                        ?? PostgresDateTimes.Unspecified(DateTime.Now.AddHours(1));
+
+                    await _context.Database.ExecuteSqlInterpolatedAsync($@"
+UPDATE ""Payments""
+SET ""PixInvoiceId"" = {invoiceId},
+    ""PixTransactionId"" = {charge.TransactionId},
+    ""PixCopyPaste"" = {charge.CopyPaste},
+    ""PixExpiresAt"" = {expiresAt}
+WHERE ""Id"" = {payment.Id}", cancellationToken);
+
+                    payment.PixInvoiceId = invoiceId;
+                    payment.PixTransactionId = charge.TransactionId;
+                    payment.PixCopyPaste = charge.CopyPaste;
+                    payment.PixExpiresAt = expiresAt;
+                }
+                catch (Exception ex)
+                {
+                    return StatusCode(500, new { message = PostgresDateTimes.ForClient(ex) });
                 }
             }
 

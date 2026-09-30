@@ -275,11 +275,18 @@ namespace EducationalPlataform.Controllers
             }
             catch (DbUpdateException ex)
             {
-                return StatusCode(500, new { message = PostgresDateTimes.Describe(ex) });
+                return StatusCode(500, new { message = PostgresDateTimes.ForClient(ex) });
             }
 
-            RegisterAudit(payment.Id, "Created", $"PIX charge generated for {dto.UserName}, Curso {dto.CourseTitle}, Valor {dto.Amount}");
-            await _context.SaveChangesAsync(); // salva auditoria
+            try
+            {
+                RegisterAudit(payment.Id, "Created", $"PIX charge generated for {dto.UserName}, Curso {dto.CourseTitle}, Valor {dto.Amount}");
+                await _context.SaveChangesAsync();
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { message = PostgresDateTimes.ForClient(ex) });
+            }
 
             var baseUrl = $"{Request.Scheme}://{Request.Host}/api/finance";
             var pixCode = PixQrHelper.BuildCopyPaste(payment.Id, payment.Amount, user.UserName);
