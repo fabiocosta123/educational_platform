@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Net;
 using System.Net.Http.Headers;
 using System.Text;
@@ -118,35 +119,29 @@ public sealed class MyCreditClient
     {
         EnsureConfigured();
         var token = await GetBearerTokenAsync(cancellationToken);
-        var due = FormatDueDate(dueDate);
+        HttpResponseMessage? response = null;
+        string body = "";
+        var currentInvoiceId = invoiceId;
 
-        var payload = new
+        for (var attempt = 0; attempt < 2; attempt++)
         {
-            formaPagamento = new
-            {
-                tpTransacao = 11,
-                idFaturaPag = invoiceId,
-                modPagamento = 18,
-                valorPagamento = decimal.Round(amount, 2, MidpointRounding.AwayFromZero),
-                dataVencimento = due
-            },
-            cliente = new
-            {
-                xNome = payerName,
-                documento = Digits(payerDocument)
-            }
-        };
+            var payloadJson = BuildPixPayloadJson(currentInvoiceId, amount, payerName, payerDocument, dueDate);
+            _logger.LogInformation(
+                "MyCredit PIX payload invoice={Invoice} amount={Amount} due={Due} nameLen={NameLen} docLen={DocLen}",
+                currentInvoiceId,
+                decimal.Round(amount, 2, MidpointRounding.AwayFromZero).ToString("0.00", CultureInfo.InvariantCulture),
+                FormatDueDate(dueDate),
+                SanitizePayerName(payerName).Length,
+                Digits(payerDocument).Length);
 
-        var payloadJson = JsonSerializer.Serialize(payload);
-        var response = await SendAuthorizedAsync(
-            HttpMethod.Post,
-            $"{BaseUrl}/api/pix",
-            payloadJson,
-            token,
-            cancellationToken);
+            response?.Dispose();
+            response = await SendAuthorizedAsync(
+                HttpMethod.Post,
+                $"{BaseUrl}/api/pix",
+                payloadJson,
+                token,
+                cancellationToken);
 
-        try
-        {
             if (response.StatusCode == HttpStatusCode.Unauthorized)
             {
                 response.Dispose();
@@ -160,12 +155,29 @@ public sealed class MyCreditClient
                     cancellationToken);
             }
 
-            var body = await response.Content.ReadAsStringAsync(cancellationToken);
-            if (!response.IsSuccessStatusCode)
+            body = await response.Content.ReadAsStringAsync(cancellationToken);
+            if (response.IsSuccessStatusCode)
+                break;
+
+            _logger.LogWarning("MyCredit create PIX failed: {Status} {Body}", (int)response.StatusCode, body);
+            var duplicate = attempt == 0
+                && response.StatusCode == HttpStatusCode.BadRequest
+                && body.Contains("idFaturaPag", StringComparison.OrdinalIgnoreCase);
+            if (!duplicate)
             {
-                _logger.LogWarning("MyCredit create PIX failed: {Status} {Body}", (int)response.StatusCode, body);
                 throw new InvalidOperationException(
                     $"MyCredit {(int)response.StatusCode}: {ExtractError(body) ?? "A MyCredit recusou a cobrança PIX."}");
+            }
+
+            currentInvoiceId = Guid.NewGuid().ToString();
+        }
+
+        try
+        {
+            if (response is null || !response.IsSuccessStatusCode)
+            {
+                throw new InvalidOperationException(
+                    $"MyCredit {(int?)response?.StatusCode}: {ExtractError(body) ?? "A MyCredit recusou a cobrança PIX."}");
             }
 
             var copyPaste = ReadRetUrl(body);
@@ -179,7 +191,8 @@ public sealed class MyCreditClient
             return new MyCreditCharge(
                 copyPaste,
                 parsed?.Data?.TransacaoId,
-                parsed?.Data?.Expira);
+                parsed?.Data?.Expira,
+                currentInvoiceId);
         }
         finally
         {
@@ -421,7 +434,58 @@ public sealed class MyCreditClient
         var date = dueDate?.Date ?? today;
         if (date < today)
             date = today;
-        return date.ToString("yyyy-MM-dd");
+        return date.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+    }
+
+    internal static string SanitizePayerName(string? name)
+    {
+        var raw = (name ?? "").Trim();
+        if (raw.Contains('@', StringComparison.Ordinal))
+            raw = raw.Split('@')[0].Replace('.', ' ').Replace('_', ' ').Replace('-', ' ');
+
+        var builder = new StringBuilder();
+        var previousSpace = false;
+        foreach (var c in raw)
+        {
+            if (char.IsLetter(c))
+            {
+                builder.Append(c);
+                previousSpace = false;
+            }
+            else if (c is ' ' or '\'' && !previousSpace && builder.Length > 0)
+            {
+                builder.Append(' ');
+                previousSpace = true;
+            }
+        }
+
+        var cleaned = builder.ToString().Trim();
+        if (cleaned.Length > 80)
+            cleaned = cleaned[..80].Trim();
+        return string.IsNullOrWhiteSpace(cleaned) ? "Aluno" : cleaned;
+    }
+
+    internal static string BuildPixPayloadJson(
+        string invoiceId,
+        decimal amount,
+        string payerName,
+        string payerDocument,
+        DateTime? dueDate)
+    {
+        var valor = decimal.Round(amount, 2, MidpointRounding.AwayFromZero)
+            .ToString("0.00", CultureInfo.InvariantCulture);
+        return string.Concat(
+            "{\"formaPagamento\":{\"tpTransacao\":11,\"idFaturaPag\":",
+            JsonSerializer.Serialize(invoiceId),
+            ",\"modPagamento\":18,\"qtdParcelas\":1,\"valorPagamento\":",
+            valor,
+            ",\"dataVencimento\":",
+            JsonSerializer.Serialize(FormatDueDate(dueDate)),
+            "},\"cliente\":{\"xNome\":",
+            JsonSerializer.Serialize(SanitizePayerName(payerName)),
+            ",\"documento\":",
+            JsonSerializer.Serialize(Digits(payerDocument)),
+            "}}");
     }
 
     private static DateTime BrasiliaToday()
@@ -484,6 +548,10 @@ public sealed class MyCreditClient
                     ? errors.GetString()
                     : errors.ToString();
             }
+            if (doc.RootElement.TryGetProperty("mensagem", out var mensagem) && mensagem.ValueKind == JsonValueKind.String)
+                return mensagem.GetString();
+            if (doc.RootElement.TryGetProperty("message", out var message) && message.ValueKind == JsonValueKind.String)
+                return message.GetString();
         }
         catch (JsonException)
         {
@@ -507,7 +575,7 @@ public sealed record MyCreditAuthProbe(
     int? HttpStatus,
     string Message);
 
-public sealed record MyCreditCharge(string CopyPaste, string? TransactionId, DateTime? ExpiresAt);
+public sealed record MyCreditCharge(string CopyPaste, string? TransactionId, DateTime? ExpiresAt, string InvoiceId);
 
 file sealed class MyCreditEnvelope<T>
 {

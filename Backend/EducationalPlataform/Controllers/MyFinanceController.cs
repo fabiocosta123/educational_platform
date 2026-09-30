@@ -139,7 +139,10 @@ namespace EducationalPlataform.Controllers
             var document = CpfValidator.DigitsOnly(payment.User.CPF);
             if (document.Length is not 11 and not 14)
             {
-                return BadRequest(new { message = "O aluno precisa ter CPF válido no cadastro para emitir o PIX." });
+                return BadRequest(new
+                {
+                    message = $"O aluno precisa ter CPF ou CNPJ no cadastro para emitir o PIX. Encontrados {document.Length} dígitos."
+                });
             }
 
             var stillValid = !string.IsNullOrWhiteSpace(payment.PixCopyPaste)
@@ -150,16 +153,12 @@ namespace EducationalPlataform.Controllers
             if (!stillValid)
             {
                 MyCreditCharge charge;
-                string invoiceId;
                 try
                 {
-                    invoiceId = Guid.TryParse(payment.PixInvoiceId, out _)
-                        ? payment.PixInvoiceId!
-                        : Guid.NewGuid().ToString();
                     charge = await _myCredit.CreatePixChargeAsync(
-                        invoiceId,
+                        Guid.NewGuid().ToString(),
                         payment.Amount,
-                        payment.User.UserName ?? "Aluno",
+                        payment.User.UserName ?? payment.User.UserEmail ?? "Aluno",
                         document,
                         payment.DueDate,
                         cancellationToken);
@@ -181,13 +180,13 @@ namespace EducationalPlataform.Controllers
 
                     await _context.Database.ExecuteSqlInterpolatedAsync($@"
 UPDATE ""Payments""
-SET ""PixInvoiceId"" = {invoiceId},
+SET ""PixInvoiceId"" = {charge.InvoiceId},
     ""PixTransactionId"" = {charge.TransactionId},
     ""PixCopyPaste"" = {charge.CopyPaste},
     ""PixExpiresAt"" = {expiresAt}
 WHERE ""Id"" = {payment.Id}", cancellationToken);
 
-                    payment.PixInvoiceId = invoiceId;
+                    payment.PixInvoiceId = charge.InvoiceId;
                     payment.PixTransactionId = charge.TransactionId;
                     payment.PixCopyPaste = charge.CopyPaste;
                     payment.PixExpiresAt = expiresAt;
