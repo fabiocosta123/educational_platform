@@ -136,6 +136,11 @@ namespace EducationalPlataform.Controllers
                 });
             }
 
+            if (document.Length == 11 && !CpfValidator.IsValid(document))
+            {
+                return BadRequest(new { message = "O CPF do aluno no cadastro é inválido. Atualize o CPF para emitir o PIX." });
+            }
+
             var stillValid = !string.IsNullOrWhiteSpace(payment.PixCopyPaste)
                 && !string.IsNullOrWhiteSpace(payment.PixInvoiceId)
                 && payment.PixExpiresAt is DateTime expires

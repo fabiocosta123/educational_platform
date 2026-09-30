@@ -166,7 +166,7 @@ public sealed class MyCreditClient
             if (!duplicate)
             {
                 throw new InvalidOperationException(
-                    $"MyCredit {(int)response.StatusCode}: {ExtractError(body) ?? "A MyCredit recusou a cobrança PIX."}");
+                    $"MyCredit {(int)response.StatusCode}: {ExtractError(body) ?? "A MyCredit recusou a cobrança PIX."} Payload: {RedactPayload(payloadJson)}");
             }
 
             currentInvoiceId = Guid.NewGuid().ToString();
@@ -408,7 +408,8 @@ public sealed class MyCreditClient
         request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
         if (json != null)
         {
-            request.Content = new StringContent(json, Encoding.UTF8, "application/json");
+            request.Content = new StringContent(json, Encoding.UTF8);
+            request.Content.Headers.ContentType = new MediaTypeHeaderValue("application/json");
         }
 
         return await _http.SendAsync(request, cancellationToken);
@@ -428,13 +429,13 @@ public sealed class MyCreditClient
             new UriCreationOptions { DangerousDisablePathAndQueryCanonicalization = true });
     }
 
-    internal static string FormatDueDate(DateTime? dueDate)
+    internal static string? FormatDueDate(DateTime? dueDate)
     {
         var today = BrasiliaToday();
-        var date = dueDate?.Date ?? today;
-        if (date < today)
-            date = today;
-        return date.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+        var date = dueDate?.Date;
+        if (date is null || date.Value <= today)
+            return null;
+        return date.Value.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
     }
 
     internal static string SanitizePayerName(string? name)
@@ -462,7 +463,11 @@ public sealed class MyCreditClient
         var cleaned = builder.ToString().Trim();
         if (cleaned.Length > 80)
             cleaned = cleaned[..80].Trim();
-        return string.IsNullOrWhiteSpace(cleaned) ? "Aluno" : cleaned;
+        if (string.IsNullOrWhiteSpace(cleaned))
+            return "Aluno Anexa";
+        if (!cleaned.Contains(' '))
+            cleaned += " Anexa";
+        return cleaned;
     }
 
     internal static string BuildPixPayloadJson(
@@ -474,13 +479,19 @@ public sealed class MyCreditClient
     {
         var valor = decimal.Round(amount, 2, MidpointRounding.AwayFromZero)
             .ToString("0.00", CultureInfo.InvariantCulture);
-        return string.Concat(
+        var due = FormatDueDate(dueDate);
+        var json = string.Concat(
             "{\"formaPagamento\":{\"tpTransacao\":11,\"idFaturaPag\":",
             JsonSerializer.Serialize(invoiceId),
             ",\"modPagamento\":18,\"valorPagamento\":",
-            valor,
-            ",\"dataVencimento\":",
-            JsonSerializer.Serialize(FormatDueDate(dueDate)),
+            valor);
+        if (due != null)
+        {
+            json = string.Concat(json, ",\"dataVencimento\":", JsonSerializer.Serialize(due));
+        }
+
+        return string.Concat(
+            json,
             "},\"cliente\":{\"xNome\":",
             JsonSerializer.Serialize(SanitizePayerName(payerName)),
             ",\"documento\":",
@@ -559,6 +570,12 @@ public sealed class MyCreditClient
 
         return string.IsNullOrWhiteSpace(body) ? null : body;
     }
+
+    private static string RedactPayload(string json)
+        => System.Text.RegularExpressions.Regex.Replace(
+            json,
+            "\"documento\":\"\\d+\"",
+            "\"documento\":\"***\"");
 
     private static string Digits(string? value) => CpfValidator.DigitsOnly(value);
 }
