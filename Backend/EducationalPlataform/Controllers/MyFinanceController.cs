@@ -142,12 +142,16 @@ namespace EducationalPlataform.Controllers
                     payment.PixInvoiceId = invoiceId;
                     payment.PixTransactionId = charge.TransactionId;
                     payment.PixCopyPaste = charge.CopyPaste;
-                    payment.PixExpiresAt = charge.ExpiresAt;
+                    payment.PixExpiresAt = PostgresDateTimes.Unspecified(charge.ExpiresAt);
                     await _context.SaveChangesAsync(cancellationToken);
                 }
                 catch (InvalidOperationException ex)
                 {
                     return StatusCode(502, new { message = ex.Message });
+                }
+                catch (DbUpdateException ex)
+                {
+                    return StatusCode(500, new { message = PostgresDateTimes.InnermostMessage(ex) });
                 }
             }
 

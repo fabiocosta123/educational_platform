@@ -1,7 +1,8 @@
-﻿using Microsoft.AspNetCore.Http;
+﻿using EducationalPlataform.Data;
+using Microsoft.AspNetCore.Http;
+using Microsoft.EntityFrameworkCore;
 using System;
 using System.Threading.Tasks;
-using EducationalPlataform.Middleware;
 
 
 namespace EducationalPlataform.Middleware
@@ -49,9 +50,20 @@ namespace EducationalPlataform.Middleware
                     response = new ErrorResponse(statusCode, ex.Message, "Falha ao falar com o serviço de pagamento.");
                     break;
 
+                case DbUpdateException:
+                    statusCode = StatusCodes.Status500InternalServerError;
+                    response = new ErrorResponse(
+                        statusCode,
+                        PostgresDateTimes.InnermostMessage(ex),
+                        "Não foi possível gravar no banco.");
+                    break;
+
                 default:
                     statusCode = StatusCodes.Status500InternalServerError;
-                    response = new ErrorResponse(statusCode, "An unexpected error occurred.", ex.Message);
+                    response = new ErrorResponse(
+                        statusCode,
+                        PostgresDateTimes.InnermostMessage(ex),
+                        ex.Message);
                     break;
 
             }

@@ -264,12 +264,19 @@ namespace EducationalPlataform.Controllers
                 CourseId = course.Id,
                 Amount = dto.Amount,
                 Status = PaymentStatus.Pending,
-                DueDate = dto.DueDate,
+                DueDate = PostgresDateTimes.Unspecified(dto.DueDate),
                 InstallmentNumber = await NextInstallmentNumberAsync(user.Id, course.Id)
             };
 
             _context.Payments.Add(payment);
-            await _context.SaveChangesAsync(); // salva primeiro para gerar o Id
+            try
+            {
+                await _context.SaveChangesAsync();
+            }
+            catch (DbUpdateException ex)
+            {
+                return StatusCode(500, new { message = PostgresDateTimes.InnermostMessage(ex) });
+            }
 
             RegisterAudit(payment.Id, "Created", $"PIX charge generated for {dto.UserName}, Curso {dto.CourseTitle}, Valor {dto.Amount}");
             await _context.SaveChangesAsync(); // salva auditoria

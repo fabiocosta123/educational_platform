@@ -196,6 +196,10 @@ namespace EducationalPlataform.Data
             modelBuilder.Entity<Payment>()
                .Property(p => p.Amount)
                .HasPrecision(10, 2);
+
+            modelBuilder.Entity<Payment>()
+                .Property(p => p.LateFeeApplied)
+                .HasDefaultValue(false);
         }
 
         private static void ConfigurePaymentAudit(ModelBuilder modelBuilder)
