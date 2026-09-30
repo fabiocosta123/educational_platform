@@ -37,12 +37,76 @@ public sealed class MyCreditClient
     public bool IsSandbox =>
         BaseUrl.Contains("sandbox", StringComparison.OrdinalIgnoreCase);
 
-    private string BaseUrl => (_configuration["MyCredit:BaseUrl"] ?? "").TrimEnd('/');
-    private string Cnpj => Digits(_configuration["MyCredit:Cnpj"]);
-    private string ResellerToken => (_configuration["MyCredit:ResellerToken"] ?? "")
+    private string BaseUrl => FirstValue(
+            "MyCredit:BaseUrl",
+            "MyCredit_BaseUrl",
+            "MYCREDIT_BASEURL",
+            "MyCredit__BaseUrl")
+        .TrimEnd('/');
+
+    private string Cnpj => Digits(FirstValue(
+        "MyCredit:Cnpj",
+        "MyCredit:CNPJ",
+        "MyCredit_Cnpj",
+        "MyCredit__Cnpj",
+        "MYCREDIT_CNPJ"));
+
+    private string ResellerToken => FirstValue(
+            "MyCredit:ResellerToken",
+            "MyCredit:Token",
+            "MyCredit:ChaveIntegrador",
+            "MyCredit:IntegratorKey",
+            "MyCredit_ResellerToken",
+            "MyCredit__ResellerToken",
+            "MYCREDIT_RESELLERTOKEN",
+            "CHAVE_INTEGRADOR")
         .Trim()
         .Trim('"')
         .Trim('\'');
+
+    private string FirstValue(params string[] keys)
+    {
+        foreach (var key in keys)
+        {
+            var value = _configuration[key];
+            if (!string.IsNullOrWhiteSpace(value))
+                return value.Trim();
+
+            var env = Environment.GetEnvironmentVariable(key);
+            if (!string.IsNullOrWhiteSpace(env))
+                return env.Trim();
+        }
+
+        return "";
+    }
+
+    private string CnpjSource => SourceOf(
+        "MyCredit:Cnpj",
+        "MyCredit:CNPJ",
+        "MyCredit_Cnpj",
+        "MyCredit__Cnpj",
+        "MYCREDIT_CNPJ");
+
+    private string TokenSource => SourceOf(
+        "MyCredit:ResellerToken",
+        "MyCredit:Token",
+        "MyCredit:ChaveIntegrador",
+        "MyCredit:IntegratorKey",
+        "MyCredit_ResellerToken",
+        "MyCredit__ResellerToken",
+        "MYCREDIT_RESELLERTOKEN",
+        "CHAVE_INTEGRADOR");
+
+    private string SourceOf(params string[] keys)
+    {
+        foreach (var key in keys)
+        {
+            if (!string.IsNullOrWhiteSpace(_configuration[key]) || !string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable(key)))
+                return key;
+        }
+
+        return "(nenhuma)";
+    }
 
     public async Task<MyCreditCharge> CreatePixChargeAsync(
         string invoiceId,
@@ -206,9 +270,12 @@ public sealed class MyCreditClient
                 false,
                 BaseUrl,
                 cnpjHint,
+                Cnpj.Length,
+                ResellerToken.Length,
+                CnpjSource,
+                TokenSource,
                 null,
-                0,
-                "Faltam MyCredit__BaseUrl, MyCredit__Cnpj ou MyCredit__ResellerToken.");
+                "Variáveis MyCredit vazias neste processo. No Railway use MyCredit__Cnpj, MyCredit__ResellerToken e MyCredit__BaseUrl (dois underlines).");
         }
 
         try
@@ -220,8 +287,11 @@ public sealed class MyCreditClient
                 true,
                 BaseUrl,
                 cnpjHint,
-                200,
+                Cnpj.Length,
                 token.Length,
+                CnpjSource,
+                TokenSource,
+                200,
                 "Token gerado com sucesso.");
         }
         catch (Exception ex)
@@ -231,8 +301,11 @@ public sealed class MyCreditClient
                 false,
                 BaseUrl,
                 cnpjHint,
+                Cnpj.Length,
+                ResellerToken.Length,
+                CnpjSource,
+                TokenSource,
                 null,
-                0,
                 ex.Message);
         }
     }
@@ -262,6 +335,14 @@ public sealed class MyCreditClient
         {
             if (!string.IsNullOrEmpty(_cachedToken) && DateTimeOffset.UtcNow < _tokenExpiresAt)
                 return _cachedToken;
+
+            _logger.LogInformation(
+                "MyCredit using BaseUrl={BaseUrl} CnpjDigits={CnpjDigits} from {CnpjSource}, tokenLength={TokenLength} from {TokenSource}",
+                BaseUrl,
+                Cnpj.Length,
+                CnpjSource,
+                ResellerToken.Length,
+                TokenSource);
 
             var secret = Convert.ToBase64String(Encoding.UTF8.GetBytes($"{Cnpj}|{ResellerToken}"));
             var url = $"{BaseUrl}/api/token/{EncodeSecretForPath(secret)}";
@@ -404,8 +485,11 @@ public sealed record MyCreditAuthProbe(
     bool TokenOk,
     string BaseUrl,
     string CnpjHint,
-    int? HttpStatus,
+    int CnpjDigits,
     int TokenLength,
+    string CnpjSource,
+    string TokenSource,
+    int? HttpStatus,
     string Message);
 
 public sealed record MyCreditCharge(string CopyPaste, string? TransactionId, DateTime? ExpiresAt);
