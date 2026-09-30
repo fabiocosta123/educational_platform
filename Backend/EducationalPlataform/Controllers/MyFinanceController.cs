@@ -99,8 +99,15 @@ namespace EducationalPlataform.Controllers
             if (payment == null)
                 return NotFound(new { message = "Cobrança não encontrada." });
 
-            await _latePolicy.ApplyForUserCourseAsync(payment.UserId, payment.CourseId, cancellationToken);
-            await _context.Entry(payment).ReloadAsync(cancellationToken);
+            try
+            {
+                await _latePolicy.ApplyForUserCourseAsync(payment.UserId, payment.CourseId, cancellationToken);
+                await _context.Entry(payment).ReloadAsync(cancellationToken);
+            }
+            catch (DbUpdateException ex)
+            {
+                return StatusCode(500, new { message = PostgresDateTimes.Describe(ex) });
+            }
 
             if (payment.Status == PaymentStatus.Paid)
                 return BadRequest(new { message = "Esta mensalidade já está paga." });
@@ -151,7 +158,7 @@ namespace EducationalPlataform.Controllers
                 }
                 catch (DbUpdateException ex)
                 {
-                    return StatusCode(500, new { message = PostgresDateTimes.InnermostMessage(ex) });
+                    return StatusCode(500, new { message = PostgresDateTimes.Describe(ex) });
                 }
             }
 

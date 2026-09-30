@@ -54,7 +54,7 @@ namespace EducationalPlataform.Middleware
                     statusCode = StatusCodes.Status500InternalServerError;
                     response = new ErrorResponse(
                         statusCode,
-                        PostgresDateTimes.InnermostMessage(ex),
+                        PostgresDateTimes.Describe(ex),
                         "Não foi possível gravar no banco.");
                     break;
 
@@ -62,7 +62,7 @@ namespace EducationalPlataform.Middleware
                     statusCode = StatusCodes.Status500InternalServerError;
                     response = new ErrorResponse(
                         statusCode,
-                        PostgresDateTimes.InnermostMessage(ex),
+                        PostgresDateTimes.Describe(ex),
                         ex.Message);
                     break;
 

@@ -10,6 +10,18 @@ namespace EducationalPlataform.Data
         {
         }
 
+        public override int SaveChanges(bool acceptAllChangesOnSuccess)
+        {
+            PostgresDateTimes.NormalizeTracked(this);
+            return base.SaveChanges(acceptAllChangesOnSuccess);
+        }
+
+        public override Task<int> SaveChangesAsync(bool acceptAllChangesOnSuccess, CancellationToken cancellationToken = default)
+        {
+            PostgresDateTimes.NormalizeTracked(this);
+            return base.SaveChangesAsync(acceptAllChangesOnSuccess, cancellationToken);
+        }
+
         public DbSet<User> Users => Set<User>();
         public DbSet<Course> Courses => Set<Course>();
         public DbSet<Lesson> Lessons => Set<Lesson>();

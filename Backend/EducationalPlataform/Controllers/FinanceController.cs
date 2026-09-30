@@ -275,7 +275,7 @@ namespace EducationalPlataform.Controllers
             }
             catch (DbUpdateException ex)
             {
-                return StatusCode(500, new { message = PostgresDateTimes.InnermostMessage(ex) });
+                return StatusCode(500, new { message = PostgresDateTimes.Describe(ex) });
             }
 
             RegisterAudit(payment.Id, "Created", $"PIX charge generated for {dto.UserName}, Curso {dto.CourseTitle}, Valor {dto.Amount}");
