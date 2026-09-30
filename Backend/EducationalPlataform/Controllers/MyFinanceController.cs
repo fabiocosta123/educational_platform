@@ -39,7 +39,16 @@ namespace EducationalPlataform.Controllers
             if (string.IsNullOrEmpty(idClaim) || !int.TryParse(idClaim, out var userId))
                 return Unauthorized();
 
-            await _latePolicy.ApplyForUserAsync(userId);
+            try
+            {
+                await _context.Database.ExecuteSqlRawAsync(
+                    """ALTER TABLE "Payments" ADD COLUMN IF NOT EXISTS "LateFeeApplied" boolean NOT NULL DEFAULT false;""");
+                await _latePolicy.ApplyForUserAsync(userId);
+            }
+            catch (Exception)
+            {
+                // Lista o financeiro mesmo se a multa ainda não puder ser gravada.
+            }
 
             var today = DateTime.Today;
             var payments = await _context.Payments
@@ -99,14 +108,18 @@ namespace EducationalPlataform.Controllers
             if (payment == null)
                 return NotFound(new { message = "Cobrança não encontrada." });
 
+            await _context.Database.ExecuteSqlRawAsync(
+                """ALTER TABLE "Payments" ADD COLUMN IF NOT EXISTS "LateFeeApplied" boolean NOT NULL DEFAULT false;""",
+                cancellationToken);
+
             try
             {
                 await _latePolicy.ApplyForUserCourseAsync(payment.UserId, payment.CourseId, cancellationToken);
                 await _context.Entry(payment).ReloadAsync(cancellationToken);
             }
-            catch (DbUpdateException ex)
+            catch (Exception)
             {
-                return StatusCode(500, new { message = PostgresDateTimes.ForClient(ex) });
+                // Multa/bloqueio não pode impedir emitir o PIX.
             }
 
             if (payment.Status == PaymentStatus.Paid)
@@ -178,7 +191,11 @@ WHERE ""Id"" = {payment.Id}", cancellationToken);
                 }
                 catch (Exception ex)
                 {
-                    return StatusCode(500, new { message = PostgresDateTimes.ForClient(ex) });
+                    return StatusCode(500, new
+                    {
+                        source = "me-finance-pix",
+                        message = PostgresDateTimes.ForClient(ex)
+                    });
                 }
             }
 
@@ -208,12 +225,23 @@ WHERE ""Id"" = {payment.Id}", cancellationToken);
                 return Ok(new { paid = false, message = "Pagamento ainda não identificado. Tente de novo em alguns segundos." });
             }
 
-            await _settlement.ApplyPaidAndUnlockAsync(
-                payment,
-                DateTime.Now,
-                "MyCreditPaid",
-                $"PIX confirmado na MyCredit. Fatura {payment.PixInvoiceId}.");
-            await _context.SaveChangesAsync(cancellationToken);
+            try
+            {
+                await _settlement.ApplyPaidAndUnlockAsync(
+                    payment,
+                    DateTime.Now,
+                    "MyCreditPaid",
+                    $"PIX confirmado na MyCredit. Fatura {payment.PixInvoiceId}.");
+                await _context.SaveChangesAsync(cancellationToken);
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new
+                {
+                    source = "me-finance-pix-status",
+                    message = PostgresDateTimes.ForClient(ex)
+                });
+            }
 
             return Ok(new { paid = true, message = "Pagamento confirmado. O curso foi liberado." });
         }
