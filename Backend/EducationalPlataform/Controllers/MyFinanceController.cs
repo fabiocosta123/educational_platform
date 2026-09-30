@@ -41,8 +41,7 @@ namespace EducationalPlataform.Controllers
 
             try
             {
-                await _context.Database.ExecuteSqlRawAsync(
-                    """ALTER TABLE "Payments" ADD COLUMN IF NOT EXISTS "LateFeeApplied" boolean NOT NULL DEFAULT false;""");
+                await SchemaEnsure.ApplyAsync(_context);
                 await _latePolicy.ApplyForUserAsync(userId);
             }
             catch (Exception)
@@ -108,19 +107,11 @@ namespace EducationalPlataform.Controllers
             if (payment == null)
                 return NotFound(new { message = "Cobrança não encontrada." });
 
-            await _context.Database.ExecuteSqlRawAsync(
-                """ALTER TABLE "Payments" ADD COLUMN IF NOT EXISTS "LateFeeApplied" boolean NOT NULL DEFAULT false;""",
-                cancellationToken);
-
-            try
-            {
-                await _latePolicy.ApplyForUserCourseAsync(payment.UserId, payment.CourseId, cancellationToken);
-                await _context.Entry(payment).ReloadAsync(cancellationToken);
-            }
-            catch (Exception)
-            {
-                // Multa/bloqueio não pode impedir emitir o PIX.
-            }
+            await SchemaEnsure.ApplyAsync(_context, cancellationToken);
+            _context.ChangeTracker.Clear();
+            payment = await LoadOwnPaymentAsync(paymentId);
+            if (payment == null)
+                return NotFound(new { message = "Cobrança não encontrada." });
 
             if (payment.Status == PaymentStatus.Paid)
                 return BadRequest(new { message = "Esta mensalidade já está paga." });
@@ -170,11 +161,7 @@ namespace EducationalPlataform.Controllers
 
                 try
                 {
-                    if (payment.User != null)
-                        _context.Entry(payment.User).State = EntityState.Unchanged;
-                    if (payment.Course != null)
-                        _context.Entry(payment.Course).State = EntityState.Unchanged;
-
+                    await SchemaEnsure.ApplyAsync(_context, cancellationToken);
                     var expiresAt = PostgresDateTimes.Unspecified(charge.ExpiresAt)
                         ?? PostgresDateTimes.Unspecified(DateTime.Now.AddHours(1));
 

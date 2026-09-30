@@ -40,10 +40,13 @@ public static class PostgresDateTimes
         => $"[{ex.GetType().Name}] {Describe(ex)}";
 
     public static bool IsMissingLateFeeColumn(Exception ex)
+        => IsMissingColumn(ex);
+
+    public static bool IsMissingColumn(Exception ex)
     {
         var text = Describe(ex);
-        return text.Contains("LateFeeApplied", StringComparison.OrdinalIgnoreCase)
-            || text.Contains("42703");
+        return text.Contains("42703")
+            || text.Contains("does not exist", StringComparison.OrdinalIgnoreCase);
     }
 
     private static void Collect(Exception? ex, List<string> parts)

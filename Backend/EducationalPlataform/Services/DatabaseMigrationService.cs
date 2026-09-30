@@ -32,9 +32,7 @@ public sealed class DatabaseMigrationService : BackgroundService
 
             try
             {
-                await db.Database.ExecuteSqlRawAsync(
-                    """ALTER TABLE "Payments" ADD COLUMN IF NOT EXISTS "LateFeeApplied" boolean NOT NULL DEFAULT false;""",
-                    stoppingToken);
+                await SchemaEnsure.ApplyAsync(db, stoppingToken);
             }
             catch (Exception ex)
             {

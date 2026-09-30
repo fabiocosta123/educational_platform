@@ -477,7 +477,7 @@ public sealed class MyCreditClient
         return string.Concat(
             "{\"formaPagamento\":{\"tpTransacao\":11,\"idFaturaPag\":",
             JsonSerializer.Serialize(invoiceId),
-            ",\"modPagamento\":18,\"qtdParcelas\":1,\"valorPagamento\":",
+            ",\"modPagamento\":18,\"valorPagamento\":",
             valor,
             ",\"dataVencimento\":",
             JsonSerializer.Serialize(FormatDueDate(dueDate)),

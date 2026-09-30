@@ -171,8 +171,7 @@ using (var scope = app.Services.CreateScope())
 {
     var db = scope.ServiceProvider.GetRequiredService<EducationalPlataformContext>();
     db.Database.Migrate();
-    db.Database.ExecuteSqlRaw(
-        """ALTER TABLE "Payments" ADD COLUMN IF NOT EXISTS "LateFeeApplied" boolean NOT NULL DEFAULT false;""");
+    SchemaEnsure.Apply(db);
 }
 
 app.UseForwardedHeaders();

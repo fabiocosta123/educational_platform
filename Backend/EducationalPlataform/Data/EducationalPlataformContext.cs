@@ -17,10 +17,10 @@ namespace EducationalPlataform.Data
             {
                 return base.SaveChanges(acceptAllChangesOnSuccess);
             }
-            catch (Exception ex) when (PostgresDateTimes.IsMissingLateFeeColumn(ex))
+            catch (Exception ex) when (PostgresDateTimes.IsMissingColumn(ex))
             {
-                Database.ExecuteSqlRaw(
-                    """ALTER TABLE "Payments" ADD COLUMN IF NOT EXISTS "LateFeeApplied" boolean NOT NULL DEFAULT false;""");
+                SchemaEnsure.Apply(this);
+                PostgresDateTimes.NormalizeTracked(this);
                 return base.SaveChanges(acceptAllChangesOnSuccess);
             }
         }
@@ -32,11 +32,10 @@ namespace EducationalPlataform.Data
             {
                 return await base.SaveChangesAsync(acceptAllChangesOnSuccess, cancellationToken);
             }
-            catch (Exception ex) when (PostgresDateTimes.IsMissingLateFeeColumn(ex))
+            catch (Exception ex) when (PostgresDateTimes.IsMissingColumn(ex))
             {
-                await Database.ExecuteSqlRawAsync(
-                    """ALTER TABLE "Payments" ADD COLUMN IF NOT EXISTS "LateFeeApplied" boolean NOT NULL DEFAULT false;""",
-                    cancellationToken);
+                await SchemaEnsure.ApplyAsync(this, cancellationToken);
+                PostgresDateTimes.NormalizeTracked(this);
                 return await base.SaveChangesAsync(acceptAllChangesOnSuccess, cancellationToken);
             }
         }
