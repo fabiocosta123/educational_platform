@@ -161,7 +161,14 @@ namespace EducationalPlataform.Controllers
                 }
                 catch (InvalidOperationException ex)
                 {
-                    return StatusCode(502, new { source = "mycredit-pix", message = ex.Message });
+                    var cpfHint = document.Length >= 2 ? $"********{document[^2..]}" : "(vazio)";
+                    return StatusCode(502, new
+                    {
+                        source = "mycredit-pix",
+                        message = ex.Message,
+                        documento = cpfHint,
+                        cpfValido = document.Length == 11 && CpfValidator.IsValid(document)
+                    });
                 }
 
                 try

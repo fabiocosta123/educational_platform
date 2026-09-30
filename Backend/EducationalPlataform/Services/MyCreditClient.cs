@@ -486,9 +486,7 @@ public sealed class MyCreditClient
             ",\"modPagamento\":18,\"valorPagamento\":",
             valor);
         if (due != null)
-        {
             json = string.Concat(json, ",\"dataVencimento\":", JsonSerializer.Serialize(due));
-        }
 
         return string.Concat(
             json,
