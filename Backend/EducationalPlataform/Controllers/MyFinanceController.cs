@@ -153,12 +153,15 @@ namespace EducationalPlataform.Controllers
                 string invoiceId;
                 try
                 {
-                    invoiceId = Guid.NewGuid().ToString();
+                    invoiceId = Guid.TryParse(payment.PixInvoiceId, out _)
+                        ? payment.PixInvoiceId!
+                        : Guid.NewGuid().ToString();
                     charge = await _myCredit.CreatePixChargeAsync(
                         invoiceId,
                         payment.Amount,
                         payment.User.UserName ?? "Aluno",
                         document,
+                        payment.DueDate,
                         cancellationToken);
                 }
                 catch (InvalidOperationException ex)

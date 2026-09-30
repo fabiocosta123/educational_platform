@@ -158,6 +158,72 @@ namespace EducationalPlataform.Controllers
             return Ok(probe);
         }
 
+        [HttpPost("pix/{paymentId:int}/refund")]
+        public async Task<IActionResult> RefundPix(int paymentId, CancellationToken cancellationToken)
+        {
+            var payment = await _context.Payments.FirstOrDefaultAsync(p => p.Id == paymentId, cancellationToken);
+            if (payment == null)
+                return NotFound(new { message = "Cobrança não encontrada." });
+            if (string.IsNullOrWhiteSpace(payment.PixInvoiceId))
+                return BadRequest(new { message = "Esta cobrança não tem PIX MyCredit para estornar." });
+
+            try
+            {
+                await _myCredit.RefundAsync(payment.PixInvoiceId, cancellationToken);
+                payment.Status = PaymentStatus.Cancelled;
+                RegisterAudit(payment.Id, "MyCreditRefunded", "Estorno integral solicitado na MyCredit.");
+                await _context.SaveChangesAsync(cancellationToken);
+                return Ok(new { message = "Estorno solicitado na MyCredit.", paymentId = payment.Id });
+            }
+            catch (InvalidOperationException ex)
+            {
+                return StatusCode(502, new { message = ex.Message });
+            }
+        }
+
+        [HttpPost("pix/{paymentId:int}/simulate")]
+        public async Task<IActionResult> SimulatePix(int paymentId, CancellationToken cancellationToken)
+        {
+            var payment = await _context.Payments.FirstOrDefaultAsync(p => p.Id == paymentId, cancellationToken);
+            if (payment == null)
+                return NotFound(new { message = "Cobrança não encontrada." });
+            if (string.IsNullOrWhiteSpace(payment.PixInvoiceId))
+                return BadRequest(new { message = "Gere o PIX antes de simular o pagamento." });
+
+            try
+            {
+                await _myCredit.SimulatePaymentAsync(payment.PixInvoiceId, cancellationToken);
+                if (payment.Status != PaymentStatus.Paid)
+                {
+                    await ApplyPaidAndUnlockAsync(
+                        payment,
+                        DateTime.Now,
+                        "MyCreditSimulated",
+                        "Pagamento simulado no sandbox MyCredit.");
+                    await _context.SaveChangesAsync(cancellationToken);
+                }
+
+                return Ok(new { paid = true, message = "Simulação aceita. Mensalidade baixada." });
+            }
+            catch (InvalidOperationException ex)
+            {
+                return StatusCode(502, new { message = ex.Message });
+            }
+        }
+
+        [HttpGet("pix/{paymentId:int}/mycredit")]
+        public async Task<IActionResult> ConsultPix(int paymentId, CancellationToken cancellationToken)
+        {
+            var payment = await _context.Payments.FirstOrDefaultAsync(p => p.Id == paymentId, cancellationToken);
+            if (payment == null)
+                return NotFound(new { message = "Cobrança não encontrada." });
+            if (string.IsNullOrWhiteSpace(payment.PixInvoiceId))
+                return Ok(new { paid = false, message = "Ainda não há PIX MyCredit." });
+
+            var paid = await _myCredit.IsPaidAsync(payment.PixInvoiceId, cancellationToken);
+            return Ok(new { paid, invoiceId = payment.PixInvoiceId });
+        }
+
         // Lista todos os pagamentos
         [HttpGet("pix")]
         public async Task<ActionResult<IEnumerable<Payment>>> GetPayments(
@@ -406,30 +472,28 @@ namespace EducationalPlataform.Controllers
         // Webhook PSP
         [AllowAnonymous]
         [HttpPost("pix/webhook")]
-        public async Task<IActionResult> PixWebhook([FromBody] PixWebhookDto dto)
+        public async Task<IActionResult> PixWebhook([FromBody] MyCreditWebhookDto dto)
         {
-            try
+            var invoiceId = dto.Dados?.Pagamento?.IdFaturaPag;
+            if (string.IsNullOrWhiteSpace(invoiceId))
+                return Ok(new { received = true, ignored = "idFaturaPag ausente" });
+
+            var payment = await _context.Payments.FirstOrDefaultAsync(p => p.PixInvoiceId == invoiceId);
+            if (payment == null)
+                return Ok(new { received = true, ignored = "cobrança não encontrada" });
+
+            if (string.Equals(dto.Tipo, "pix.pago", StringComparison.OrdinalIgnoreCase)
+                && payment.Status != PaymentStatus.Paid)
             {
-                var payment = await _context.Payments.FindAsync(dto.PaymentId);
-                if (payment == null) return NotFound();
-
-                if (payment.Status == PaymentStatus.Paid)
-                    return Ok(new { message = "Payment already confirmed." });
-
                 await ApplyPaidAndUnlockAsync(
                     payment,
                     DateTime.Now,
-                    "WebhookReceived",
-                    $"Payment confirmed by PSP. TransactionId: {dto.TransactionId}");
+                    "MyCreditWebhookPaid",
+                    $"Webhook {dto.Id}.");
                 await _context.SaveChangesAsync();
+            }
 
-                return Ok(new { message = "Payment confirmed via webhook and course unlocked." });
-            }
-            catch (Exception ex)
-            {
-                var detail = ex.InnerException?.Message ?? ex.Message;
-                return StatusCode(500, $"Erro ao processar webhook: {detail}");
-            }
+            return Ok(new { received = true });
         }
 
 

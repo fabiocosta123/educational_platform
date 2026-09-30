@@ -34,6 +34,9 @@ public sealed class MyCreditClient
         && !string.IsNullOrWhiteSpace(Cnpj)
         && !string.IsNullOrWhiteSpace(ResellerToken);
 
+    public bool IsSandbox =>
+        BaseUrl.Contains("sandbox", StringComparison.OrdinalIgnoreCase);
+
     private string BaseUrl => (_configuration["MyCredit:BaseUrl"] ?? "").TrimEnd('/');
     private string Cnpj => Digits(_configuration["MyCredit:Cnpj"]);
     private string ResellerToken => (_configuration["MyCredit:ResellerToken"] ?? "")
@@ -46,10 +49,12 @@ public sealed class MyCreditClient
         decimal amount,
         string payerName,
         string payerDocument,
+        DateTime? dueDate,
         CancellationToken cancellationToken = default)
     {
         EnsureConfigured();
         var token = await GetBearerTokenAsync(cancellationToken);
+        var due = FormatDueDate(dueDate);
 
         var payload = new
         {
@@ -58,7 +63,8 @@ public sealed class MyCreditClient
                 tpTransacao = 11,
                 idFaturaPag = invoiceId,
                 modPagamento = 18,
-                valorPagamento = decimal.Round(amount, 2, MidpointRounding.AwayFromZero)
+                valorPagamento = decimal.Round(amount, 2, MidpointRounding.AwayFromZero),
+                dataVencimento = due
             },
             cliente = new
             {
@@ -67,36 +73,54 @@ public sealed class MyCreditClient
             }
         };
 
-        using var request = new HttpRequestMessage(HttpMethod.Post, $"{BaseUrl}/api/pix")
-        {
-            Content = new StringContent(
-                JsonSerializer.Serialize(payload),
-                Encoding.UTF8,
-                "application/json")
-        };
-        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+        var payloadJson = JsonSerializer.Serialize(payload);
+        var response = await SendAuthorizedAsync(
+            HttpMethod.Post,
+            $"{BaseUrl}/api/pix",
+            payloadJson,
+            token,
+            cancellationToken);
 
-        using var response = await _http.SendAsync(request, cancellationToken);
-        var body = await response.Content.ReadAsStringAsync(cancellationToken);
-        if (!response.IsSuccessStatusCode)
+        try
         {
-            _logger.LogWarning("MyCredit create PIX failed: {Status} {Body}", (int)response.StatusCode, body);
-            throw new InvalidOperationException(
-                $"MyCredit {(int)response.StatusCode}: {ExtractError(body) ?? "A MyCredit recusou a cobrança PIX."}");
+            if (response.StatusCode == HttpStatusCode.Unauthorized)
+            {
+                response.Dispose();
+                InvalidateToken();
+                token = await GetBearerTokenAsync(cancellationToken);
+                response = await SendAuthorizedAsync(
+                    HttpMethod.Post,
+                    $"{BaseUrl}/api/pix",
+                    payloadJson,
+                    token,
+                    cancellationToken);
+            }
+
+            var body = await response.Content.ReadAsStringAsync(cancellationToken);
+            if (!response.IsSuccessStatusCode)
+            {
+                _logger.LogWarning("MyCredit create PIX failed: {Status} {Body}", (int)response.StatusCode, body);
+                throw new InvalidOperationException(
+                    $"MyCredit {(int)response.StatusCode}: {ExtractError(body) ?? "A MyCredit recusou a cobrança PIX."}");
+            }
+
+            var copyPaste = ReadRetUrl(body);
+            if (string.IsNullOrWhiteSpace(copyPaste))
+            {
+                throw new InvalidOperationException(
+                    $"MyCredit 200 sem código PIX: {(body.Length > 400 ? body[..400] : body)}");
+            }
+
+            var parsed = JsonSerializer.Deserialize<MyCreditEnvelope<MyCreditChargeData>>(body, JsonOptions);
+            return new MyCreditCharge(
+                copyPaste,
+                parsed?.Data?.TransacaoId,
+                parsed?.Data?.Expira);
         }
-
-        var copyPaste = ReadRetUrl(body);
-        if (string.IsNullOrWhiteSpace(copyPaste))
+        finally
         {
-            throw new InvalidOperationException(
-                $"MyCredit 200 sem código PIX: {(body.Length > 400 ? body[..400] : body)}");
+            response.Dispose();
         }
-
-        var parsed = JsonSerializer.Deserialize<MyCreditEnvelope<MyCreditChargeData>>(body, JsonOptions);
-        return new MyCreditCharge(
-            copyPaste,
-            parsed?.Data?.TransacaoId,
-            parsed?.Data?.Expira);
     }
 
     public async Task<bool> IsPaidAsync(string invoiceId, CancellationToken cancellationToken = default)
@@ -109,12 +133,14 @@ public sealed class MyCreditClient
 
         using var response = await _http.SendAsync(request, cancellationToken);
         if (response.StatusCode == HttpStatusCode.Gone)
-        {
             return false;
-        }
 
         if (response.StatusCode == HttpStatusCode.NotFound)
+            return false;
+
+        if (response.StatusCode == HttpStatusCode.Unauthorized)
         {
+            InvalidateToken();
             return false;
         }
 
@@ -126,12 +152,48 @@ public sealed class MyCreditClient
         }
 
         using var doc = JsonDocument.Parse(string.IsNullOrWhiteSpace(body) ? "{}" : body);
-        if (doc.RootElement.TryGetProperty("sucesso", out var sucesso) && sucesso.ValueKind == JsonValueKind.True)
+        return doc.RootElement.TryGetProperty("sucesso", out var sucesso)
+               && sucesso.ValueKind == JsonValueKind.True;
+    }
+
+    public async Task RefundAsync(string invoiceId, CancellationToken cancellationToken = default)
+    {
+        EnsureConfigured();
+        var token = await GetBearerTokenAsync(cancellationToken);
+
+        using var request = new HttpRequestMessage(HttpMethod.Delete, $"{BaseUrl}/api/pix/{invoiceId}");
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+
+        using var response = await _http.SendAsync(request, cancellationToken);
+        var body = await response.Content.ReadAsStringAsync(cancellationToken);
+        if (!response.IsSuccessStatusCode)
         {
-            return true;
+            throw new InvalidOperationException(
+                $"MyCredit {(int)response.StatusCode}: {ExtractError(body) ?? "Não foi possível estornar o PIX."}");
+        }
+    }
+
+    public async Task SimulatePaymentAsync(string invoiceId, CancellationToken cancellationToken = default)
+    {
+        EnsureConfigured();
+        if (!IsSandbox)
+        {
+            throw new InvalidOperationException("A simulação de pagamento só existe no sandbox da MyCredit.");
         }
 
-        return false;
+        var token = await GetBearerTokenAsync(cancellationToken);
+        using var request = new HttpRequestMessage(
+            HttpMethod.Post,
+            $"{BaseUrl}/api/pix/simular-pagamento/{invoiceId}");
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+
+        using var response = await _http.SendAsync(request, cancellationToken);
+        var body = await response.Content.ReadAsStringAsync(cancellationToken);
+        if (!response.IsSuccessStatusCode)
+        {
+            throw new InvalidOperationException(
+                $"MyCredit {(int)response.StatusCode}: {ExtractError(body) ?? "A simulação de pagamento foi recusada."}");
+        }
     }
 
     public async Task<MyCreditAuthProbe> ProbeAuthenticationAsync(CancellationToken cancellationToken = default)
@@ -151,6 +213,7 @@ public sealed class MyCreditClient
 
         try
         {
+            InvalidateToken();
             var token = await GetBearerTokenAsync(cancellationToken);
             return new MyCreditAuthProbe(
                 true,
@@ -183,24 +246,29 @@ public sealed class MyCreditClient
         }
     }
 
+    private void InvalidateToken()
+    {
+        _cachedToken = null;
+        _tokenExpiresAt = default;
+    }
+
     private async Task<string> GetBearerTokenAsync(CancellationToken cancellationToken)
     {
         if (!string.IsNullOrEmpty(_cachedToken) && DateTimeOffset.UtcNow < _tokenExpiresAt)
-        {
             return _cachedToken;
-        }
 
         await _tokenLock.WaitAsync(cancellationToken);
         try
         {
             if (!string.IsNullOrEmpty(_cachedToken) && DateTimeOffset.UtcNow < _tokenExpiresAt)
-            {
                 return _cachedToken;
-            }
 
             var secret = Convert.ToBase64String(Encoding.UTF8.GetBytes($"{Cnpj}|{ResellerToken}"));
-            var url = $"{BaseUrl}/api/token/{Uri.EscapeDataString(secret)}";
-            using var response = await _http.GetAsync(url, cancellationToken);
+            var url = $"{BaseUrl}/api/token/{EncodeSecretForPath(secret)}";
+            using var request = new HttpRequestMessage(HttpMethod.Get, url);
+            request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
+
+            using var response = await _http.SendAsync(request, cancellationToken);
             var body = await response.Content.ReadAsStringAsync(cancellationToken);
             if (!response.IsSuccessStatusCode)
             {
@@ -215,14 +283,13 @@ public sealed class MyCreditClient
             var token = ExtractToken(body);
             if (string.IsNullOrWhiteSpace(token))
             {
-                _logger.LogWarning("MyCredit token HTTP {Status} but no token field in body.", (int)response.StatusCode);
-                throw new InvalidOperationException("A MyCredit não retornou o Bearer Token.");
+                throw new InvalidOperationException(
+                    $"A MyCredit não retornou o JWT em data. {(body.Length > 300 ? body[..300] : body)}");
             }
 
-            _logger.LogInformation("MyCredit token obtained. Length {Length}.", token.Length);
-
             _cachedToken = token;
-            _tokenExpiresAt = DateTimeOffset.UtcNow.AddMinutes(50);
+            _tokenExpiresAt = DateTimeOffset.UtcNow.AddHours(24);
+            _logger.LogInformation("MyCredit token obtained. Length {Length}.", token.Length);
             return token;
         }
         finally
@@ -231,39 +298,61 @@ public sealed class MyCreditClient
         }
     }
 
+    private async Task<HttpResponseMessage> SendAuthorizedAsync(
+        HttpMethod method,
+        string url,
+        string? json,
+        string token,
+        CancellationToken cancellationToken)
+    {
+        var request = new HttpRequestMessage(method, url);
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+        request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
+        if (json != null)
+        {
+            request.Content = new StringContent(json, Encoding.UTF8, "application/json");
+        }
+
+        return await _http.SendAsync(request, cancellationToken);
+    }
+
+    internal static string EncodeSecretForPath(string base64)
+        => base64.Replace("+", "%2B").Replace("/", "%2F");
+
+    internal static string FormatDueDate(DateTime? dueDate)
+    {
+        var today = BrasiliaToday();
+        var date = dueDate?.Date ?? today;
+        if (date < today)
+            date = today;
+        return date.ToString("yyyy-MM-dd");
+    }
+
+    private static DateTime BrasiliaToday()
+    {
+        TimeZoneInfo zone;
+        try
+        {
+            zone = TimeZoneInfo.FindSystemTimeZoneById("E. South America Standard Time");
+        }
+        catch (TimeZoneNotFoundException)
+        {
+            zone = TimeZoneInfo.FindSystemTimeZoneById("America/Sao_Paulo");
+        }
+
+        return TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, zone).Date;
+    }
+
     private static string ExtractToken(string body)
     {
         var trimmed = body.Trim().Trim('"');
         if (!trimmed.StartsWith('{') && !trimmed.StartsWith('['))
-        {
             return trimmed;
-        }
 
         using var doc = JsonDocument.Parse(body);
         var root = doc.RootElement;
         if (root.TryGetProperty("data", out var data) && data.ValueKind == JsonValueKind.String)
-        {
             return data.GetString() ?? "";
-        }
-
-        foreach (var name in new[] { "token", "access_token", "accessToken", "bearerToken", "bearer", "jwt" })
-        {
-            if (root.TryGetProperty(name, out var value) && value.ValueKind == JsonValueKind.String)
-            {
-                return value.GetString() ?? "";
-            }
-        }
-
-        if (root.TryGetProperty("data", out data) && data.ValueKind == JsonValueKind.Object)
-        {
-            foreach (var name in new[] { "token", "access_token", "accessToken", "bearerToken", "bearer" })
-            {
-                if (data.TryGetProperty(name, out var nested) && nested.ValueKind == JsonValueKind.String)
-                {
-                    return nested.GetString() ?? "";
-                }
-            }
-        }
 
         return "";
     }
@@ -273,15 +362,16 @@ public sealed class MyCreditClient
         try
         {
             using var doc = JsonDocument.Parse(body);
-            if (doc.RootElement.TryGetProperty("data", out var data) && data.ValueKind == JsonValueKind.Object
-                && data.TryGetProperty("retUrl", out var retUrl) && retUrl.ValueKind == JsonValueKind.String)
+            if (doc.RootElement.TryGetProperty("data", out var data)
+                && data.ValueKind == JsonValueKind.Object
+                && data.TryGetProperty("retUrl", out var retUrl)
+                && retUrl.ValueKind == JsonValueKind.String)
             {
                 return retUrl.GetString();
             }
         }
         catch (JsonException)
         {
-            // ignore
         }
 
         return null;
@@ -301,7 +391,6 @@ public sealed class MyCreditClient
         }
         catch (JsonException)
         {
-            // ignore
         }
 
         return string.IsNullOrWhiteSpace(body) ? null : body;
