@@ -125,14 +125,11 @@ public sealed class MyCreditClient
 
         for (var attempt = 0; attempt < 2; attempt++)
         {
-            var payloadJson = BuildPixPayloadJson(currentInvoiceId, amount, payerName, payerDocument, dueDate);
+            var payloadJson = BuildPixPayloadJson(currentInvoiceId, amount);
             _logger.LogInformation(
-                "MyCredit PIX payload invoice={Invoice} amount={Amount} due={Due} nameLen={NameLen} docLen={DocLen}",
+                "MyCredit PIX payload invoice={Invoice} amount={Amount}",
                 currentInvoiceId,
-                decimal.Round(amount, 2, MidpointRounding.AwayFromZero).ToString("0.00", CultureInfo.InvariantCulture),
-                FormatDueDate(dueDate),
-                SanitizePayerName(payerName).Length,
-                Digits(payerDocument).Length);
+                decimal.Round(amount, 2, MidpointRounding.AwayFromZero).ToString("0.00", CultureInfo.InvariantCulture));
 
             response?.Dispose();
             response = await SendAuthorizedAsync(
@@ -470,30 +467,19 @@ public sealed class MyCreditClient
         return cleaned;
     }
 
-    internal static string BuildPixPayloadJson(
-        string invoiceId,
-        decimal amount,
-        string payerName,
-        string payerDocument,
-        DateTime? dueDate)
+    /// <summary>
+    /// Official immediate PIX body from https://docs.mycredit.com.br/api-reference/autenticacao.md
+    /// (only formaPagamento; cliente and dataVencimento are optional and trigger MyCredit EF 400 when sent).
+    /// </summary>
+    internal static string BuildPixPayloadJson(string invoiceId, decimal amount)
     {
         var valor = decimal.Round(amount, 2, MidpointRounding.AwayFromZero)
             .ToString("0.00", CultureInfo.InvariantCulture);
-        var due = FormatDueDate(dueDate);
-        var json = string.Concat(
+        return string.Concat(
             "{\"formaPagamento\":{\"tpTransacao\":11,\"idFaturaPag\":",
             JsonSerializer.Serialize(invoiceId),
             ",\"modPagamento\":18,\"valorPagamento\":",
-            valor);
-        if (due != null)
-            json = string.Concat(json, ",\"dataVencimento\":", JsonSerializer.Serialize(due));
-
-        return string.Concat(
-            json,
-            "},\"cliente\":{\"xNome\":",
-            JsonSerializer.Serialize(SanitizePayerName(payerName)),
-            ",\"documento\":",
-            JsonSerializer.Serialize(Digits(payerDocument)),
+            valor,
             "}}");
     }
 
