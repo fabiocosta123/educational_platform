@@ -171,7 +171,14 @@ using (var scope = app.Services.CreateScope())
 {
     var db = scope.ServiceProvider.GetRequiredService<EducationalPlataformContext>();
     db.Database.Migrate();
-    SchemaEnsure.Apply(db);
+    try
+    {
+        SchemaEnsure.Apply(db);
+    }
+    catch (Exception ex)
+    {
+        Console.Error.WriteLine($"SchemaEnsure failed: {ex}");
+    }
 }
 
 app.UseForwardedHeaders();

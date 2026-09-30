@@ -154,8 +154,23 @@ namespace EducationalPlataform.Controllers
         [HttpGet("mycredit/status")]
         public async Task<IActionResult> MyCreditStatus(CancellationToken cancellationToken)
         {
+            await SchemaEnsure.ApplyAsync(_context, cancellationToken);
             var probe = await _myCredit.ProbeAuthenticationAsync(cancellationToken);
-            return Ok(probe);
+            var schema = await SchemaEnsure.DescribeAsync(_context, cancellationToken);
+            return Ok(new
+            {
+                probe.Configured,
+                probe.TokenOk,
+                probe.BaseUrl,
+                probe.CnpjHint,
+                probe.CnpjDigits,
+                probe.TokenLength,
+                probe.CnpjSource,
+                probe.TokenSource,
+                probe.HttpStatus,
+                probe.Message,
+                schema
+            });
         }
 
         [HttpPost("pix/{paymentId:int}/refund")]

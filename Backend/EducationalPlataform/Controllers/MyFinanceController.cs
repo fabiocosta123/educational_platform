@@ -156,7 +156,7 @@ namespace EducationalPlataform.Controllers
                 }
                 catch (InvalidOperationException ex)
                 {
-                    return StatusCode(502, new { message = ex.Message });
+                    return StatusCode(502, new { source = "mycredit-pix", message = ex.Message });
                 }
 
                 try
