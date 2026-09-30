@@ -23,17 +23,20 @@ namespace EducationalPlataform.Controllers
         private readonly PaymentSettlementService _settlement;
         private readonly CourseInstallmentService _installments;
         private readonly LatePaymentPolicyService _latePolicy;
+        private readonly MyCreditClient _myCredit;
 
         public FinanceController(
             EducationalPlataformContext context,
             PaymentSettlementService settlement,
             CourseInstallmentService installments,
-            LatePaymentPolicyService latePolicy)
+            LatePaymentPolicyService latePolicy,
+            MyCreditClient myCredit)
         {
             _context = context;
             _settlement = settlement;
             _installments = installments;
             _latePolicy = latePolicy;
+            _myCredit = myCredit;
         }
 
 
@@ -147,6 +150,13 @@ namespace EducationalPlataform.Controllers
         #endregion
 
 
+
+        [HttpGet("mycredit/status")]
+        public async Task<IActionResult> MyCreditStatus(CancellationToken cancellationToken)
+        {
+            var probe = await _myCredit.ProbeAuthenticationAsync(cancellationToken);
+            return Ok(probe);
+        }
 
         // Lista todos os pagamentos
         [HttpGet("pix")]

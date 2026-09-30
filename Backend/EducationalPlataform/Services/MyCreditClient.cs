@@ -130,6 +130,46 @@ public sealed class MyCreditClient
         return false;
     }
 
+    public async Task<MyCreditAuthProbe> ProbeAuthenticationAsync(CancellationToken cancellationToken = default)
+    {
+        var cnpjHint = Cnpj.Length >= 4 ? $"********{Cnpj[^4..]}" : "(vazio)";
+        if (!IsConfigured)
+        {
+            return new MyCreditAuthProbe(
+                false,
+                false,
+                BaseUrl,
+                cnpjHint,
+                null,
+                0,
+                "Faltam MyCredit__BaseUrl, MyCredit__Cnpj ou MyCredit__ResellerToken.");
+        }
+
+        try
+        {
+            var token = await GetBearerTokenAsync(cancellationToken);
+            return new MyCreditAuthProbe(
+                true,
+                true,
+                BaseUrl,
+                cnpjHint,
+                200,
+                token.Length,
+                "Token gerado com sucesso.");
+        }
+        catch (Exception ex)
+        {
+            return new MyCreditAuthProbe(
+                true,
+                false,
+                BaseUrl,
+                cnpjHint,
+                null,
+                0,
+                ex.Message);
+        }
+    }
+
     private void EnsureConfigured()
     {
         if (!IsConfigured)
@@ -160,14 +200,21 @@ public sealed class MyCreditClient
             var body = await response.Content.ReadAsStringAsync(cancellationToken);
             if (!response.IsSuccessStatusCode)
             {
+                _logger.LogWarning(
+                    "MyCredit token failed: {Status} {Error}",
+                    (int)response.StatusCode,
+                    ExtractError(body) ?? body);
                 throw new InvalidOperationException(ExtractError(body) ?? "Não foi possível autenticar na MyCredit.");
             }
 
             var token = ExtractToken(body);
             if (string.IsNullOrWhiteSpace(token))
             {
+                _logger.LogWarning("MyCredit token HTTP {Status} but no token field in body.", (int)response.StatusCode);
                 throw new InvalidOperationException("A MyCredit não retornou o Bearer Token.");
             }
+
+            _logger.LogInformation("MyCredit token obtained. Length {Length}.", token.Length);
 
             _cachedToken = token;
             _tokenExpiresAt = DateTimeOffset.UtcNow.AddMinutes(50);
@@ -189,7 +236,7 @@ public sealed class MyCreditClient
 
         using var doc = JsonDocument.Parse(body);
         var root = doc.RootElement;
-        foreach (var name in new[] { "token", "access_token", "accessToken", "bearerToken" })
+        foreach (var name in new[] { "token", "access_token", "accessToken", "bearerToken", "bearer", "jwt" })
         {
             if (root.TryGetProperty(name, out var value) && value.ValueKind == JsonValueKind.String)
             {
@@ -204,7 +251,7 @@ public sealed class MyCreditClient
                 return data.GetString() ?? "";
             }
 
-            foreach (var name in new[] { "token", "access_token", "accessToken" })
+            foreach (var name in new[] { "token", "access_token", "accessToken", "bearerToken", "bearer" })
             {
                 if (data.TryGetProperty(name, out var nested) && nested.ValueKind == JsonValueKind.String)
                 {
@@ -238,6 +285,15 @@ public sealed class MyCreditClient
 
     private static string Digits(string? value) => CpfValidator.DigitsOnly(value);
 }
+
+public sealed record MyCreditAuthProbe(
+    bool Configured,
+    bool TokenOk,
+    string BaseUrl,
+    string CnpjHint,
+    int? HttpStatus,
+    int TokenLength,
+    string Message);
 
 public sealed record MyCreditCharge(string CopyPaste, string? TransactionId, DateTime? ExpiresAt);
 
