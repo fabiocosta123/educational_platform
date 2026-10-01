@@ -260,6 +260,9 @@ public sealed class MyCreditClient
             HttpMethod.Post,
             $"{BaseUrl}/api/pix/simular-pagamento/{invoiceId}");
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+        request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
+        request.Content = new StringContent("{}", Encoding.UTF8);
+        request.Content.Headers.ContentType = new MediaTypeHeaderValue("application/json");
 
         using var response = await _http.SendAsync(request, cancellationToken);
         var body = await response.Content.ReadAsStringAsync(cancellationToken);
