@@ -57,16 +57,13 @@ public class MyCreditWebhookController : ControllerBase
 
         if (string.Equals(tipo, "pix.estornado", StringComparison.OrdinalIgnoreCase))
         {
-            if (payment.Status == PaymentStatus.Cancelled)
-                return Ok(new { received = true, ignored = "já estornado" });
+            if (payment.Status != PaymentStatus.Paid)
+                return Ok(new { received = true, ignored = "já reaberto ou não estava pago" });
 
-            payment.Status = PaymentStatus.Cancelled;
-            _context.PaymentAudits.Add(new PaymentAudit
-            {
-                PaymentId = payment.Id,
-                Action = "MyCreditRefunded",
-                Details = $"Webhook {dto.Id}. Estorno MyCredit."
-            });
+            await _settlement.ApplyPixRefundAsync(
+                payment,
+                "MyCreditRefunded",
+                $"Webhook {dto.Id}. Estorno MyCredit.");
             await _context.SaveChangesAsync();
             return Ok(new { received = true });
         }

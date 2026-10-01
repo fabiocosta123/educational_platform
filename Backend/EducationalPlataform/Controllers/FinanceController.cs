@@ -117,7 +117,7 @@ namespace EducationalPlataform.Controllers
                 {
                     p.Id,
                     p.Amount,
-                    p.Status,
+                    Status = p.Status.ToString(),
                     p.DueDate,
                     p.PaidAt,
                     p.SettledAt,
@@ -187,9 +187,21 @@ namespace EducationalPlataform.Controllers
 
             try
             {
-                await _myCredit.RefundAsync(payment.PixInvoiceId, cancellationToken);
-                payment.Status = PaymentStatus.Cancelled;
-                RegisterAudit(payment.Id, "MyCreditRefunded", "Estorno integral solicitado na MyCredit.");
+                try
+                {
+                    await _myCredit.RefundAsync(payment.PixInvoiceId, cancellationToken);
+                }
+                catch (InvalidOperationException ex) when (
+                    ex.Message.Contains("estorn", StringComparison.OrdinalIgnoreCase))
+                {
+                    // MyCredit já devolveu; ainda assim reabre a mensalidade na Anexa.
+                }
+
+                await _settlement.ApplyPixRefundAsync(
+                    payment,
+                    "MyCreditRefunded",
+                    "Estorno integral. Mensalidade reaberta para novo pagamento.",
+                    cancellationToken);
                 await _context.SaveChangesAsync(cancellationToken);
                 return Ok(new { message = "Estorno solicitado na MyCredit.", paymentId = payment.Id });
             }
@@ -512,10 +524,12 @@ namespace EducationalPlataform.Controllers
             }
 
             if (string.Equals(dto.Tipo, "pix.estornado", StringComparison.OrdinalIgnoreCase)
-                && payment.Status != PaymentStatus.Cancelled)
+                && payment.Status == PaymentStatus.Paid)
             {
-                payment.Status = PaymentStatus.Cancelled;
-                RegisterAudit(payment.Id, "MyCreditRefunded", $"Webhook {dto.Id}. Estorno MyCredit.");
+                await _settlement.ApplyPixRefundAsync(
+                    payment,
+                    "MyCreditRefunded",
+                    $"Webhook {dto.Id}. Estorno MyCredit.");
                 await _context.SaveChangesAsync();
             }
 

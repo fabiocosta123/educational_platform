@@ -85,4 +85,47 @@ public sealed class PaymentSettlementService
             Details = auditDetails
         });
     }
+
+    public async Task ApplyPixRefundAsync(
+        Payment payment,
+        string auditAction,
+        string auditDetails,
+        CancellationToken cancellationToken = default)
+    {
+        payment.Status = PaymentStatus.Pending;
+        payment.PaidAt = null;
+        payment.SettledAt = null;
+        payment.PixCopyPaste = null;
+        payment.PixTransactionId = null;
+        payment.PixExpiresAt = null;
+        payment.PixInvoiceId = null;
+
+        _context.PaymentAudits.Add(new PaymentAudit
+        {
+            PaymentId = payment.Id,
+            Action = auditAction,
+            Details = auditDetails
+        });
+
+        var enrollment = await _context.CourseEnrollments
+            .FirstOrDefaultAsync(e =>
+                e.UserId == payment.UserId &&
+                e.CourseId == payment.CourseId,
+                cancellationToken);
+        if (enrollment == null)
+            return;
+
+        var today = DateTime.Today;
+        var siblings = await _context.Payments
+            .Where(p =>
+                p.UserId == payment.UserId &&
+                p.CourseId == payment.CourseId &&
+                p.Id != payment.Id)
+            .ToListAsync(cancellationToken);
+
+        var blocking = LatePaymentPolicyService.IsBlockingOverdue(payment, today)
+            || siblings.Any(p => LatePaymentPolicyService.IsBlockingOverdue(p, today));
+        if (blocking)
+            enrollment.Status = LatePaymentPolicyService.BlockedStatus;
+    }
 }
