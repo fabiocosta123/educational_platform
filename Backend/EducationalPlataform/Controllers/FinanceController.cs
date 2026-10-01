@@ -123,6 +123,7 @@ namespace EducationalPlataform.Controllers
                     p.SettledAt,
                     p.InstallmentNumber,
                     p.LateFeeApplied,
+                    p.PixInvoiceId,
 
                     Course = new
                     {
@@ -181,6 +182,8 @@ namespace EducationalPlataform.Controllers
                 return NotFound(new { message = "Cobrança não encontrada." });
             if (string.IsNullOrWhiteSpace(payment.PixInvoiceId))
                 return BadRequest(new { message = "Esta cobrança não tem PIX MyCredit para estornar." });
+            if (payment.Status != PaymentStatus.Paid)
+                return BadRequest(new { message = "Só é possível estornar um PIX já pago. Pendente ou já estornado não entra neste endpoint." });
 
             try
             {
@@ -505,6 +508,14 @@ namespace EducationalPlataform.Controllers
                     DateTime.Now,
                     "MyCreditWebhookPaid",
                     $"Webhook {dto.Id}.");
+                await _context.SaveChangesAsync();
+            }
+
+            if (string.Equals(dto.Tipo, "pix.estornado", StringComparison.OrdinalIgnoreCase)
+                && payment.Status != PaymentStatus.Cancelled)
+            {
+                payment.Status = PaymentStatus.Cancelled;
+                RegisterAudit(payment.Id, "MyCreditRefunded", $"Webhook {dto.Id}. Estorno MyCredit.");
                 await _context.SaveChangesAsync();
             }
 

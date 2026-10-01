@@ -57,6 +57,9 @@ public class MyCreditWebhookController : ControllerBase
 
         if (string.Equals(tipo, "pix.estornado", StringComparison.OrdinalIgnoreCase))
         {
+            if (payment.Status == PaymentStatus.Cancelled)
+                return Ok(new { received = true, ignored = "já estornado" });
+
             payment.Status = PaymentStatus.Cancelled;
             _context.PaymentAudits.Add(new PaymentAudit
             {

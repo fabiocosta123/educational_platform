@@ -125,11 +125,12 @@ public sealed class MyCreditClient
 
         for (var attempt = 0; attempt < 2; attempt++)
         {
-            var payloadJson = BuildPixPayloadJson(currentInvoiceId, amount);
+            var payloadJson = BuildPixPayloadJson(currentInvoiceId, amount, payerName);
             _logger.LogInformation(
-                "MyCredit PIX payload invoice={Invoice} amount={Amount}",
+                "MyCredit PIX payload invoice={Invoice} amount={Amount} payer={Payer}",
                 currentInvoiceId,
-                decimal.Round(amount, 2, MidpointRounding.AwayFromZero).ToString("0.00", CultureInfo.InvariantCulture));
+                decimal.Round(amount, 2, MidpointRounding.AwayFromZero).ToString("0.00", CultureInfo.InvariantCulture),
+                SanitizePayerName(payerName));
 
             response?.Dispose();
             response = await SendAuthorizedAsync(
@@ -237,6 +238,7 @@ public sealed class MyCreditClient
 
         using var request = new HttpRequestMessage(HttpMethod.Delete, $"{BaseUrl}/api/pix/{invoiceId}");
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+        request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
 
         using var response = await _http.SendAsync(request, cancellationToken);
         var body = await response.Content.ReadAsStringAsync(cancellationToken);
@@ -471,19 +473,36 @@ public sealed class MyCreditClient
     }
 
     /// <summary>
-    /// Official immediate PIX body from https://docs.mycredit.com.br/api-reference/autenticacao.md
-    /// (only formaPagamento; cliente and dataVencimento are optional and trigger MyCredit EF 400 when sent).
+    /// Immediate PIX plus optional payer label. Document is initials + yyyyMMddHHmmss (Brasília),
+    /// not the student's CPF, so the charge is identifiable in MyCredit without their EF client insert failing on CPF.
     /// </summary>
-    internal static string BuildPixPayloadJson(string invoiceId, decimal amount)
+    internal static string BuildPixPayloadJson(string invoiceId, decimal amount, string payerName)
     {
         var valor = decimal.Round(amount, 2, MidpointRounding.AwayFromZero)
             .ToString("0.00", CultureInfo.InvariantCulture);
+        var name = SanitizePayerName(payerName);
+        var document = BuildPayerDocument(payerName, BrasiliaNow());
         return string.Concat(
             "{\"formaPagamento\":{\"tpTransacao\":11,\"idFaturaPag\":",
             JsonSerializer.Serialize(invoiceId),
             ",\"modPagamento\":18,\"valorPagamento\":",
             valor,
+            "},\"cliente\":{\"xNome\":",
+            JsonSerializer.Serialize(name),
+            ",\"documento\":",
+            JsonSerializer.Serialize(document),
             "}}");
+    }
+
+    internal static string BuildPayerDocument(string? name, DateTime when)
+    {
+        var initials = string.Concat(
+            SanitizePayerName(name)
+                .Split(' ', StringSplitOptions.RemoveEmptyEntries)
+                .Select(part => char.ToLowerInvariant(part[0])));
+        if (string.IsNullOrWhiteSpace(initials))
+            initials = "al";
+        return initials + when.ToString("yyyyMMddHHmmss", CultureInfo.InvariantCulture);
     }
 
     private static DateTime BrasiliaToday()
@@ -499,6 +518,21 @@ public sealed class MyCreditClient
         }
 
         return TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, zone).Date;
+    }
+
+    private static DateTime BrasiliaNow()
+    {
+        TimeZoneInfo zone;
+        try
+        {
+            zone = TimeZoneInfo.FindSystemTimeZoneById("E. South America Standard Time");
+        }
+        catch (TimeZoneNotFoundException)
+        {
+            zone = TimeZoneInfo.FindSystemTimeZoneById("America/Sao_Paulo");
+        }
+
+        return TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, zone);
     }
 
     private static string ExtractToken(string body)
