@@ -125,7 +125,7 @@ public sealed class MyCreditClient
 
         for (var attempt = 0; attempt < 2; attempt++)
         {
-            var payloadJson = BuildPixPayloadJson(currentInvoiceId, amount, payerName);
+            var payloadJson = BuildPixPayloadJson(currentInvoiceId, amount, payerName, payerDocument);
             _logger.LogInformation(
                 "MyCredit PIX payload invoice={Invoice} amount={Amount} payer={Payer}",
                 currentInvoiceId,
@@ -473,36 +473,26 @@ public sealed class MyCreditClient
     }
 
     /// <summary>
-    /// Immediate PIX plus optional payer label. Document is initials + yyyyMMddHHmmss (Brasília),
-    /// not the student's CPF, so the charge is identifiable in MyCredit without their EF client insert failing on CPF.
+    /// Docs: cliente.xNome = full name, cliente.documento = CPF/CNPJ digits only.
     /// </summary>
-    internal static string BuildPixPayloadJson(string invoiceId, decimal amount, string payerName)
+    internal static string BuildPixPayloadJson(
+        string invoiceId,
+        decimal amount,
+        string payerName,
+        string payerDocument)
     {
         var valor = decimal.Round(amount, 2, MidpointRounding.AwayFromZero)
             .ToString("0.00", CultureInfo.InvariantCulture);
-        var name = SanitizePayerName(payerName);
-        var document = BuildPayerDocument(payerName, BrasiliaNow());
         return string.Concat(
             "{\"formaPagamento\":{\"tpTransacao\":11,\"idFaturaPag\":",
             JsonSerializer.Serialize(invoiceId),
             ",\"modPagamento\":18,\"valorPagamento\":",
             valor,
             "},\"cliente\":{\"xNome\":",
-            JsonSerializer.Serialize(name),
+            JsonSerializer.Serialize(SanitizePayerName(payerName)),
             ",\"documento\":",
-            JsonSerializer.Serialize(document),
+            JsonSerializer.Serialize(Digits(payerDocument)),
             "}}");
-    }
-
-    internal static string BuildPayerDocument(string? name, DateTime when)
-    {
-        var initials = string.Concat(
-            SanitizePayerName(name)
-                .Split(' ', StringSplitOptions.RemoveEmptyEntries)
-                .Select(part => char.ToLowerInvariant(part[0])));
-        if (string.IsNullOrWhiteSpace(initials))
-            initials = "al";
-        return initials + when.ToString("yyyyMMddHHmmss", CultureInfo.InvariantCulture);
     }
 
     private static DateTime BrasiliaToday()
@@ -518,21 +508,6 @@ public sealed class MyCreditClient
         }
 
         return TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, zone).Date;
-    }
-
-    private static DateTime BrasiliaNow()
-    {
-        TimeZoneInfo zone;
-        try
-        {
-            zone = TimeZoneInfo.FindSystemTimeZoneById("E. South America Standard Time");
-        }
-        catch (TimeZoneNotFoundException)
-        {
-            zone = TimeZoneInfo.FindSystemTimeZoneById("America/Sao_Paulo");
-        }
-
-        return TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, zone);
     }
 
     private static string ExtractToken(string body)
