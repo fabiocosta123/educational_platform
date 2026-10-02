@@ -190,11 +190,9 @@ namespace EducationalPlataform.Controllers
             if (!CanManageCourse(userId, course))
                 return StatusCode(StatusCodes.Status403Forbidden, new { message = "Você só pode criar atividades e provas dos seus cursos." });
 
-            foreach (var question in dto.Questions)
-            {
-                if (question.Options.Count(o => o.IsCorrect) != 1)
-                    return BadRequest(new { message = "Cada pergunta precisa ter exatamente uma alternativa correta." });
-            }
+            var questionError = ValidateQuestions(dto.Questions);
+            if (questionError != null)
+                return BadRequest(new { message = questionError });
 
             var assessment = new Assessment
             {
@@ -243,6 +241,7 @@ namespace EducationalPlataform.Controllers
                     q.Id,
                     q.Prompt,
                     q.Points,
+                    QuestionType = InferQuestionType(q.Options.Select(o => o.Text).ToList()),
                     Options = q.Options.Select(o => new
                     {
                         o.Id,
@@ -270,11 +269,9 @@ namespace EducationalPlataform.Controllers
             if (!CanManageCourse(userId, assessment.Course))
                 return StatusCode(StatusCodes.Status403Forbidden, new { message = "Sem permissão para editar esta avaliação." });
 
-            foreach (var question in dto.Questions)
-            {
-                if (question.Options.Count(o => o.IsCorrect) != 1)
-                    return BadRequest(new { message = "Cada pergunta precisa ter exatamente uma alternativa correta." });
-            }
+            var questionError = ValidateQuestions(dto.Questions);
+            if (questionError != null)
+                return BadRequest(new { message = questionError });
 
             assessment.Title = dto.Title.Trim();
             assessment.Description = dto.Description;
@@ -472,6 +469,7 @@ namespace EducationalPlataform.Controllers
             var qOrder = 1;
             foreach (var question in questions)
             {
+                NormalizeQuestionOptions(question);
                 var entity = new AssessmentQuestion
                 {
                     Prompt = question.Prompt.Trim(),
@@ -479,7 +477,7 @@ namespace EducationalPlataform.Controllers
                     Points = question.Points > 0 ? question.Points : 1
                 };
                 var oOrder = 1;
-                foreach (var option in question.Options.Where(o => !string.IsNullOrWhiteSpace(o.Text)))
+                foreach (var option in question.Options)
                 {
                     entity.Options.Add(new AssessmentOption
                     {
@@ -492,12 +490,97 @@ namespace EducationalPlataform.Controllers
             }
         }
 
+        private static string? ValidateQuestions(List<AssessmentQuestionWriteDto> questions)
+        {
+            foreach (var question in questions)
+            {
+                if (string.IsNullOrWhiteSpace(question.Prompt))
+                    return "Cada pergunta precisa de um enunciado.";
+
+                NormalizeQuestionOptions(question);
+                if (question.Options.Count(o => o.IsCorrect) != 1)
+                    return "Cada pergunta precisa ter exatamente uma alternativa correta.";
+
+                if (IsTrueFalse(question))
+                {
+                    if (question.Options.Count != 2)
+                        return "Perguntas de verdadeiro ou falso precisam das alternativas Verdadeiro e Falso.";
+                }
+                else if (question.Options.Count is < 2 or > 5)
+                {
+                    return "Cada pergunta de múltipla escolha precisa ter de 2 a 5 alternativas preenchidas.";
+                }
+            }
+
+            return null;
+        }
+
+        private static void NormalizeQuestionOptions(AssessmentQuestionWriteDto question)
+        {
+            if (IsTrueFalse(question))
+            {
+                var correctIsTrue = question.Options.Any(o =>
+                    o.IsCorrect && IsTrueLabel(o.Text));
+                if (!question.Options.Any(o => o.IsCorrect))
+                    correctIsTrue = true;
+
+                question.QuestionType = "TrueFalse";
+                question.Options =
+                [
+                    new AssessmentOptionWriteDto { Text = "Verdadeiro", IsCorrect = correctIsTrue },
+                    new AssessmentOptionWriteDto { Text = "Falso", IsCorrect = !correctIsTrue }
+                ];
+                return;
+            }
+
+            question.QuestionType = "MultipleChoice";
+            question.Options = question.Options
+                .Where(o => !string.IsNullOrWhiteSpace(o.Text))
+                .Take(5)
+                .Select(o => new AssessmentOptionWriteDto
+                {
+                    Text = o.Text.Trim(),
+                    IsCorrect = o.IsCorrect
+                })
+                .ToList();
+        }
+
+        private static bool IsTrueFalse(AssessmentQuestionWriteDto question)
+        {
+            if (string.Equals(question.QuestionType, "TrueFalse", StringComparison.OrdinalIgnoreCase))
+                return true;
+
+            var texts = question.Options
+                .Where(o => !string.IsNullOrWhiteSpace(o.Text))
+                .Select(o => o.Text.Trim())
+                .ToList();
+            return texts.Count == 2
+                && texts.Any(IsTrueLabel)
+                && texts.Any(IsFalseLabel);
+        }
+
+        private static string InferQuestionType(IReadOnlyList<string> optionTexts)
+        {
+            if (optionTexts.Count == 2 && optionTexts.Any(IsTrueLabel) && optionTexts.Any(IsFalseLabel))
+                return "TrueFalse";
+            return "MultipleChoice";
+        }
+
+        private static bool IsTrueLabel(string? text)
+            => string.Equals(text?.Trim(), "Verdadeiro", StringComparison.OrdinalIgnoreCase)
+               || string.Equals(text?.Trim(), "True", StringComparison.OrdinalIgnoreCase);
+
+        private static bool IsFalseLabel(string? text)
+            => string.Equals(text?.Trim(), "Falso", StringComparison.OrdinalIgnoreCase)
+               || string.Equals(text?.Trim(), "False", StringComparison.OrdinalIgnoreCase);
+
         private static object MapQuestions(Assessment assessment) =>
             assessment.Questions.Select(q => new
             {
                 q.Id,
                 q.Prompt,
                 q.Points,
+                QuestionType = InferQuestionType(q.Options.Select(o => o.Text).ToList()),
                 Options = q.Options.Select(o => new { o.Id, o.Text })
             });
 

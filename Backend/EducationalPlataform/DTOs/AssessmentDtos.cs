@@ -12,6 +12,8 @@ namespace EducationalPlataform.DTOs
     {
         public string Prompt { get; set; } = string.Empty;
         public decimal Points { get; set; } = 1;
+        /// <summary>MultipleChoice ou TrueFalse.</summary>
+        public string QuestionType { get; set; } = "MultipleChoice";
         public List<AssessmentOptionWriteDto> Options { get; set; } = new();
     }
 
