@@ -546,6 +546,12 @@ public sealed class MyCreditClient
 
     private static string? ExtractError(string body)
     {
+        if (body.Contains("<html", StringComparison.OrdinalIgnoreCase)
+            || body.Contains("<!DOCTYPE", StringComparison.OrdinalIgnoreCase))
+        {
+            return "A URL da MyCredit respondeu 404 (site Azure não encontrado). No Railway de produção, MyCredit__BaseUrl deve ser exatamente https://api.mycredit.com.br — sem /api, sem sandbox, sem outro domínio.";
+        }
+
         try
         {
             using var doc = JsonDocument.Parse(body);
