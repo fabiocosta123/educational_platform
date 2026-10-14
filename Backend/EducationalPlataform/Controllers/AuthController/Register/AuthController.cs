@@ -116,7 +116,10 @@ namespace EducationalPlataform.Controllers.AuthController.Register
         [HttpGet("me")]
         public async Task<IActionResult> Me()
         {
-            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier)
+                ?? User.FindFirstValue(JwtRegisteredClaimNames.Sub)
+                ?? User.FindFirstValue("nameid")
+                ?? User.FindFirstValue("sub");
             if (string.IsNullOrEmpty(userId)) return Unauthorized();
 
             if (!int.TryParse(userId, out var id)) return Unauthorized();
@@ -177,6 +180,16 @@ namespace EducationalPlataform.Controllers.AuthController.Register
             if (!ModelState.IsValid)
                 return BadRequest(ModelState);
 
+            try
+            {
+                await SchemaEnsure.ApplyAsync(_context);
+            }
+            catch (Exception)
+            {
+            }
+
+            try
+            {
             var formattedCpf = CpfValidator.Format(dto.CPF);
             var email = dto.UserEmail.Trim();
 
@@ -249,12 +262,8 @@ namespace EducationalPlataform.Controllers.AuthController.Register
                 UserEmail = dto.UserEmail,
                 CPF = formattedCpf,
                 PhoneNumber = dto.PhoneNumber,
-                BirthDate = dto.BirthDate,
-
-                // IMPORTANTE:
-                // Cadastro público sempre cria aluno.
+                BirthDate = PostgresDateTimes.Unspecified(dto.BirthDate),
                 Profile = UserProfile.Student,
-
                 Role = UserProfile.Student.ToString()
             };
 
@@ -275,9 +284,9 @@ namespace EducationalPlataform.Controllers.AuthController.Register
             enrollment.Status = "Pending";
             enrollment.ProgressPercentage = 0;
             enrollment.CompletedLessons = 0;
-            enrollment.TotalLessons = course.Modules
-                .SelectMany(m => m.Lessons)
-                .Count();
+            enrollment.TotalLessons = course.Modules?
+                .SelectMany(m => m.Lessons ?? Array.Empty<Lesson>())
+                .Count() ?? 0;
 
             _context.CourseEnrollments.Add(enrollment);
             await _installments.EnsureForEnrollmentAsync(user.Id, course.Id);
@@ -303,6 +312,15 @@ namespace EducationalPlataform.Controllers.AuthController.Register
                 firstPaymentId = firstPayment?.Id,
                 token = GenerateJwtToken(user)
             });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new
+                {
+                    message = "Não foi possível realizar o cadastro.",
+                    details = PostgresDateTimes.ForClient(ex)
+                });
+            }
         }
 
 
