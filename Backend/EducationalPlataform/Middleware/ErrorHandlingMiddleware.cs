@@ -24,6 +24,7 @@ namespace EducationalPlataform.Middleware
             }   
             catch (Exception ex)
             {
+                Console.Error.WriteLine(ex.ToString());
                 await HandleExceptionAsync(context, ex);
             }
         }
@@ -37,33 +38,35 @@ namespace EducationalPlataform.Middleware
             {
                 case ArgumentException:
                     statusCode = StatusCodes.Status400BadRequest;
-                    response = new ErrorResponse(statusCode, "Invalid request data: ", ex.Message);
+                    response = new ErrorResponse(statusCode, "Dados inválidos. Revise as informações e tente de novo.");
                     break;
 
                 case UnauthorizedAccessException:
                     statusCode = StatusCodes.Status401Unauthorized;
-                    response = new ErrorResponse(statusCode, "Unauthorized access.", ex.Message);
+                    response = new ErrorResponse(statusCode, "Você precisa entrar novamente para continuar.");
                     break;
 
                 case InvalidOperationException:
                     statusCode = StatusCodes.Status502BadGateway;
-                    response = new ErrorResponse(statusCode, ex.Message, "Falha ao falar com o serviço de pagamento.");
+                    response = new ErrorResponse(
+                        statusCode,
+                        string.IsNullOrWhiteSpace(ex.Message)
+                            ? "Não foi possível concluir esta operação agora. Tente de novo em alguns instantes."
+                            : ex.Message);
                     break;
 
                 case DbUpdateException:
                     statusCode = StatusCodes.Status500InternalServerError;
                     response = new ErrorResponse(
                         statusCode,
-                        PostgresDateTimes.ForClient(ex),
-                        "Não foi possível gravar no banco.");
+                        "Não foi possível salvar agora. Tente de novo em alguns instantes.");
                     break;
 
                 default:
                     statusCode = StatusCodes.Status500InternalServerError;
                     response = new ErrorResponse(
                         statusCode,
-                        PostgresDateTimes.ForClient(ex),
-                        ex.Message);
+                        "Não foi possível concluir esta operação agora. Tente de novo em alguns instantes.");
                     break;
 
             }
