@@ -161,7 +161,11 @@ namespace EducationalPlataform.Controllers
                 }
                 catch (InvalidOperationException ex)
                 {
-                    return StatusCode(502, new { source = "mycredit-pix", message = ex.Message });
+                    Console.Error.WriteLine($"MyCredit PIX failed: {ex.Message}");
+                    return StatusCode(502, new
+                    {
+                        message = "Não foi possível gerar o PIX agora. Tente de novo em alguns instantes."
+                    });
                 }
 
                 try
@@ -185,10 +189,10 @@ WHERE ""Id"" = {payment.Id}", cancellationToken);
                 }
                 catch (Exception ex)
                 {
+                    Console.Error.WriteLine($"PIX persist failed: {PostgresDateTimes.ForClient(ex)}");
                     return StatusCode(500, new
                     {
-                        source = "me-finance-pix",
-                        message = PostgresDateTimes.ForClient(ex)
+                        message = "Não foi possível gerar o PIX agora. Tente de novo em alguns instantes."
                     });
                 }
             }
@@ -230,10 +234,10 @@ WHERE ""Id"" = {payment.Id}", cancellationToken);
             }
             catch (Exception ex)
             {
+                Console.Error.WriteLine($"PIX status persist failed: {PostgresDateTimes.ForClient(ex)}");
                 return StatusCode(500, new
                 {
-                    source = "me-finance-pix-status",
-                    message = PostgresDateTimes.ForClient(ex)
+                    message = "Não foi possível confirmar o pagamento agora. Tente de novo em alguns instantes."
                 });
             }
 

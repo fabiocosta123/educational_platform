@@ -315,10 +315,10 @@ namespace EducationalPlataform.Controllers.AuthController.Register
             }
             catch (Exception ex)
             {
+                Console.Error.WriteLine($"RegisterCourse failed: {PostgresDateTimes.ForClient(ex)}");
                 return StatusCode(500, new
                 {
-                    message = "Não foi possível realizar o cadastro.",
-                    details = PostgresDateTimes.ForClient(ex)
+                    message = "Não foi possível realizar o cadastro. Tente de novo em alguns instantes."
                 });
             }
         }

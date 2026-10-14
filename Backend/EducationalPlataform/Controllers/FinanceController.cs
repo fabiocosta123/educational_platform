@@ -207,7 +207,8 @@ namespace EducationalPlataform.Controllers
             }
             catch (InvalidOperationException ex)
             {
-                return StatusCode(502, new { message = ex.Message });
+                Console.Error.WriteLine($"MyCredit refund failed: {ex.Message}");
+                return StatusCode(502, new { message = "Não foi possível estornar o pagamento agora." });
             }
         }
 
@@ -237,7 +238,8 @@ namespace EducationalPlataform.Controllers
             }
             catch (InvalidOperationException ex)
             {
-                return StatusCode(502, new { message = ex.Message });
+                Console.Error.WriteLine($"MyCredit simulate failed: {ex.Message}");
+                return StatusCode(502, new { message = "Não foi possível simular o pagamento agora." });
             }
         }
 

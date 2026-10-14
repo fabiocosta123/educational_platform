@@ -7,7 +7,7 @@
         public string? Details { get; set; }
 
 
-        public ErrorResponse(int statusCode, string message, string details)
+        public ErrorResponse(int statusCode, string message, string? details = null)
         {
             StatusCode = statusCode;
             Message = message;

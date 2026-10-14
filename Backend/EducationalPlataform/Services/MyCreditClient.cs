@@ -10,6 +10,9 @@ namespace EducationalPlataform.Services;
 
 public sealed class MyCreditClient
 {
+    private const string UserFacingFailure =
+        "Não foi possível gerar o pagamento agora. Tente de novo em alguns instantes.";
+
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
         PropertyNameCaseInsensitive = true,
@@ -163,8 +166,7 @@ public sealed class MyCreditClient
                 && body.Contains("idFaturaPag", StringComparison.OrdinalIgnoreCase);
             if (!duplicate)
             {
-                throw new InvalidOperationException(
-                    $"MyCredit {(int)response.StatusCode}: {ExtractError(body) ?? "A MyCredit recusou a cobrança PIX."} Payload: {RedactPayload(payloadJson)}");
+                throw new InvalidOperationException(UserFacingFailure);
             }
 
             currentInvoiceId = Guid.NewGuid().ToString();
@@ -174,15 +176,14 @@ public sealed class MyCreditClient
         {
             if (response is null || !response.IsSuccessStatusCode)
             {
-                throw new InvalidOperationException(
-                    $"MyCredit {(int?)response?.StatusCode}: {ExtractError(body) ?? "A MyCredit recusou a cobrança PIX."}");
+                throw new InvalidOperationException(UserFacingFailure);
             }
 
             var copyPaste = ReadRetUrl(body);
             if (string.IsNullOrWhiteSpace(copyPaste))
             {
-                throw new InvalidOperationException(
-                    $"MyCredit 200 sem código PIX: {(body.Length > 400 ? body[..400] : body)}");
+                _logger.LogWarning("MyCredit 200 sem código PIX: {Body}", body.Length > 400 ? body[..400] : body);
+                throw new InvalidOperationException(UserFacingFailure);
             }
 
             var parsed = JsonSerializer.Deserialize<MyCreditEnvelope<MyCreditChargeData>>(body, JsonOptions);
@@ -244,8 +245,8 @@ public sealed class MyCreditClient
         var body = await response.Content.ReadAsStringAsync(cancellationToken);
         if (!response.IsSuccessStatusCode)
         {
-            throw new InvalidOperationException(
-                $"MyCredit {(int)response.StatusCode}: {ExtractError(body) ?? "Não foi possível estornar o PIX."}");
+            _logger.LogWarning("MyCredit refund failed: {Status} {Body}", (int)response.StatusCode, body);
+            throw new InvalidOperationException("Não foi possível estornar o pagamento agora.");
         }
     }
 
@@ -270,8 +271,8 @@ public sealed class MyCreditClient
         var body = await response.Content.ReadAsStringAsync(cancellationToken);
         if (!response.IsSuccessStatusCode)
         {
-            throw new InvalidOperationException(
-                $"MyCredit {(int)response.StatusCode}: {ExtractError(body) ?? "A simulação de pagamento foi recusada."}");
+            _logger.LogWarning("MyCredit simulate failed: {Status} {Body}", (int)response.StatusCode, body);
+            throw new InvalidOperationException("Não foi possível simular o pagamento agora.");
         }
     }
 
@@ -329,8 +330,7 @@ public sealed class MyCreditClient
     {
         if (!IsConfigured)
         {
-            throw new InvalidOperationException(
-                "MyCredit não configurada. Defina MyCredit__BaseUrl, MyCredit__Cnpj e MyCredit__ResellerToken.");
+            throw new InvalidOperationException(UserFacingFailure);
         }
     }
 
@@ -376,15 +376,14 @@ public sealed class MyCreditClient
                     "MyCredit token failed: {Status} {Error}",
                     (int)response.StatusCode,
                     ExtractError(body) ?? body);
-                throw new InvalidOperationException(
-                    $"MyCredit token {(int)response.StatusCode}: {ExtractError(body) ?? "Não foi possível autenticar na MyCredit."}");
+                throw new InvalidOperationException(UserFacingFailure);
             }
 
             var token = ExtractToken(body);
             if (string.IsNullOrWhiteSpace(token))
             {
-                throw new InvalidOperationException(
-                    $"A MyCredit não retornou o JWT em data. {(body.Length > 300 ? body[..300] : body)}");
+                _logger.LogWarning("MyCredit token response without JWT: {Body}", body.Length > 300 ? body[..300] : body);
+                throw new InvalidOperationException(UserFacingFailure);
             }
 
             _cachedToken = token;
@@ -549,7 +548,7 @@ public sealed class MyCreditClient
         if (body.Contains("<html", StringComparison.OrdinalIgnoreCase)
             || body.Contains("<!DOCTYPE", StringComparison.OrdinalIgnoreCase))
         {
-            return "A URL da MyCredit respondeu 404 (site Azure não encontrado). No Railway de produção, MyCredit__BaseUrl deve ser exatamente https://api.mycredit.com.br — sem /api, sem sandbox, sem outro domínio.";
+            return "html-error";
         }
 
         try
